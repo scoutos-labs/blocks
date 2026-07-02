@@ -21,18 +21,24 @@
 <body>
 <main>
 <h1>Progress — blocks-explainer</h1>
-<p class="meta">Companion to <a href="blocks-explainer-prd.html">the PRD</a>. Status: <span class="chip inprogress">in-progress</span></p>
+<p class="meta">Companion to <a href="blocks-explainer-prd.html">the PRD</a>. Status: <span class="chip pass">complete</span> — published at <a href="https://zenbin.org/p/blocks-explainer">zenbin.org/p/blocks-explainer</a></p>
 
 <h2>Step checklist</h2>
 <table>
   <tr><th>Step</th><th>Status</th><th>Evidence</th><th>Repairs</th></tr>
-  <tr><td>1 — Skeleton + design system</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>2 — Real-artifact content pass</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>3 — Orchestrated schematic</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>4 — Reveals + accessibility</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>5 — Validation harness</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>6 — Publish to zenbin</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
+  <tr><td>1 — Skeleton + design system</td><td><span class="chip pass">pass</span></td><td>Opens from file:// with JS off (final-state render); 1 h1, monotonic headings; zero external refs — harness §a,c</td><td>0</td></tr>
+  <tr><td>2 — Real-artifact content pass</td><td><span class="chip pass">pass</span></td><td>Harness §g: all 5 hash chips, 0.85/pass, 394 B, gate expr, grants, skip reason, argv line, SKILL.md quote each verified against their source files; every artifact carries a <code>source:</code> comment; reviewer cross-checked independently — "Truthfulness: clean"</td><td>0</td></tr>
+  <tr><td>3 — Orchestrated schematic</td><td><span class="chip pass">pass</span></td><td>9-state machine matches runner protocol ("Protocol honesty: clean" — reviewer); reduced-motion + no-JS land on completed state; timers stop offscreen; headless-Chrome shots at 2.5s (step 2/9) and 30s (9/9) prove stepping</td><td>1 (gate text occluded by render chip — split to 3 short lines)</td></tr>
+  <tr><td>4 — Reveals + accessibility</td><td><span class="chip pass">pass</span></td><td>Harness §h: 7 contrast pairs ≥ required ratios (incl. paper-on-chip after repair); native buttons, focus-visible, aria-live caption</td><td>1 (fuzzy chip 2.78:1 → darkened to #8A5E0B, 5.20:1)</td></tr>
+  <tr><td>5 — Validation harness</td><td><span class="chip pass">pass</span></td><td><code>node docs/blocks-explainer-check.mjs docs/blocks-explainer.html</code> → 36/36 ALL PASS · 33.3 KB (budget 200) · script committed so evidence survives the session</td><td>0</td></tr>
+  <tr><td>6 — Publish to zenbin</td><td><span class="chip pass">pass</span></td><td>Key registered (201), page published (201) at <code>https://zenbin.org/p/blocks-explainer</code>; <code>/raw</code> bytes identical to local file (cmp); live screenshot shows animation completing → inline JS allowed; keypair stored in <code>~/.config/zenbin/</code> (0600), never in repo</td><td>0</td></tr>
 </table>
+
+<h2>Reviewer findings</h2>
+<ul>
+  <li><strong>Plan gate:</strong> NO BLOCKERS; 4 suggestions (full gate conjunction animated ✓; precise SPEC citations ✓; harness committed for durable evidence ✓; five-word strip complete ✓).</li>
+  <li><strong>Implementation gate:</strong> 2 blockers, both repaired — gate-expression occlusion in the authored final state; fuzzy chip contrast 2.78:1. Nits fixed: elision marks in FIG.3a, controls hidden without JS, playback resumes after scroll-away. Scores: taste 4, originality 5 (chip/occlusion craft issues were exactly the taste deductions — both repaired).</li>
+</ul>
 
 <h2>Agent choices</h2>
 <p>Planner: <code>Plan</code> agent (read-only) — content spine + step plan folded into PRD. Plan reviewer: <code>general-purpose</code> with critic directives. Impl reviewer: <code>general-purpose</code> read-only.</p>
