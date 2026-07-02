@@ -183,8 +183,7 @@ One execution = one file: `runs/<workflow>-<runId>.run.json`.
       "status": "done",
       "blockHash": "sha256:...",
       "attempts": 1,
-      "output": { "text": "..." },
-      "finishedAt": "2026-07-02T15:00:01Z"
+      "output": { "text": "..." }
     }
   }
 }
@@ -192,7 +191,9 @@ One execution = one file: `runs/<workflow>-<runId>.run.json`.
 
 - `status` ∈ `pending | done | skipped | failed`.
 - `blockHash` = sha256 over the block's `SKILL.md` + `contract.json` + entry script, recorded at execution time for drift audit.
-- **Determinism check:** two runs of the same workflow with the same inputs must have identical `.nodes[*].output` and `.nodes[*].blockHash`. `runId` and timestamps are the only fields allowed to differ, and they live outside the compared sections.
+- Node records carry **no timestamps** — `runId` and `startedAt` live at the top level only, so the entire `.nodes` object is diffable.
+- For a fuzzy node, the resolved input values are persisted on the node record (`"input"`) so the agent and auditors see exactly what the oracle was asked. Do not wire `secret` inputs into fuzzy nodes.
+- **Determinism check:** two runs of the same workflow with the same inputs must produce byte-identical `.nodes` objects for all *deterministic* nodes (fuzzy outputs may legitimately vary; a det-only workflow must diff clean across its entire `.nodes`). `runId` and `startedAt` are the only fields allowed to differ.
 
 **Runner protocol** (the runner skill instructs the agent; the CLI enforces):
 
