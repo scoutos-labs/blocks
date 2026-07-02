@@ -1,0 +1,12 @@
+{
+  "name": "git-log",
+  "version": 1,
+  "kind": "deterministic",
+  "inputs": { "range": { "type": "string", "description": "a git revision range, e.g. HEAD~15..HEAD" } },
+  "outputs": { "text": { "type": "string" } },
+  "exec": {
+    "argv": ["git", "log", "--no-color", "--reverse", "--date=short", "--pretty=format:%h %ad %s", "{{inputs.range}}"],
+    "capture": "text"
+  },
+  "permissions": { "run": ["git"], "read": [], "write": [], "network": false }
+}

@@ -148,8 +148,9 @@ ident        = [a-zA-Z_][a-zA-Z0-9_-]*
 
 - A **whole-value** binding (the entire string is one `{{...}}`) preserves the upstream type.
 - **Interpolation** (binding embedded in longer text) is only valid when the target input is `type: string`; bound values must be string, number, or boolean.
+- A node input may also be a **literal JSON value** (object, array, number, …). Bindings resolve anywhere a string sits inside it — e.g. `"values": {"body": "{{nodes.draft.output.summary}}"}`.
 - `{{env.*}}` does not exist in v1 (see §7).
-- The validator resolves every ref: `inputs.*` must be declared workflow inputs; `nodes.X.output.Y` must name an upstream node and a declared output field with a type compatible with the target input.
+- The validator resolves every ref: `inputs.*` must be declared workflow inputs; `nodes.X.output.Y` must name an upstream node and a declared output field with a type compatible with the target input. Digging into a property-less `object` output (a generic block like `extract`) is legal but statically unknown — the contract check happens at run time instead.
 
 ## 5. Gates (`when` grammar)
 
@@ -205,7 +206,7 @@ One execution = one file: `runs/<workflow>-<runId>.run.json`.
 
 ## 7. Permission and secrets model
 
-- Effective capability = `block.permissions ∩ workflow.grants`, computed per node. A block may not receive via grants anything it did not declare; the validator rejects grants exceeding declarations *use* (a workflow granting `run: ["rm"]` to a block that declared only `git` fails validation).
+- Effective capability = `block.permissions ∩ workflow.grants`, computed per node. For `run` the intersection is exact binary names; for `read`/`write` it is **cover semantics**: a granted glob is effective only if some block declaration covers it (`**` covers everything, `dir/**` covers `dir/...`, otherwise exact match). A workflow may not grant anything no block declared (a workflow granting `run: ["rm"]` when no block declares `rm` fails validation).
 - argv blocks: `argv[0]` must be inside the effective `run` set at exec time, again (defense in depth).
 - All paths workspace-relative; `..` and absolute paths rejected at validation *and* at exec time after resolve+normalize.
 - No `{{env.*}}` bindings; run-state never persists process environment.

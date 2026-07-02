@@ -1,15 +1,16 @@
 // ASCII render of a workflow DAG. Gates visibly branch; det/fuzzy visibly differ.
 
-import { parseTemplate } from './bindings.js';
+import { parseTemplate, walkStrings } from './bindings.js';
 
 // Rebuild the dep edges the same way the validator does (wires + when + after).
 export function collectDeps(node) {
   const deps = new Set();
   for (const value of Object.values(node.in ?? {})) {
-    if (typeof value !== 'string') continue;
-    for (const part of parseTemplate(value).parts) {
-      if (part.ref?.kind === 'node') deps.add(part.ref.node);
-    }
+    walkStrings(value, (s) => {
+      for (const part of parseTemplate(s).parts) {
+        if (part.ref?.kind === 'node') deps.add(part.ref.node);
+      }
+    });
   }
   if (typeof node.when === 'string') {
     for (const m of node.when.matchAll(/nodes\.([a-z][a-z0-9-]*)\.output/g)) deps.add(m[1]);

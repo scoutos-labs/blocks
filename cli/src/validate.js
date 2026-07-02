@@ -3,8 +3,9 @@
 
 import { readFileSync } from 'node:fs';
 import { checkSchemaDef } from './schema.js';
-import { parseTemplate } from './bindings.js';
+import { parseTemplate, walkStrings } from './bindings.js';
 import { parseWhen } from './when.js';
+import { coveredBy } from './globs.js';
 
 const ID_RE = /^[a-z][a-z0-9-]*$/;
 const PIN_RE = /^([a-z][a-z0-9-]*)@(\d+)$/;
@@ -93,6 +94,9 @@ export function validateWorkflow(workflow, library, file) {
     if (!dep.block) return null; // pin error already reported
     let schema = { type: 'object', properties: dep.block.outputs };
     for (const key of ref.path) {
+      // A property-less object output (e.g. a generic extract block) can be
+      // dug into, but the result is statically unknown — checked at run time.
+      if (schema.type === 'object' && schema.properties === undefined) return { type: 'unknown' };
       const props = schema.properties ?? {};
       if (schema.type !== 'object' || !props[key]) {
         err(pointer, `node "${ref.node}" (${dep.node.block}) declares no output "${ref.path.join('.')}"`, `declared outputs: ${Object.keys(dep.block.outputs).join(', ')}`);
@@ -122,32 +126,38 @@ export function validateWorkflow(workflow, library, file) {
       const bp = `${p}/in/${name}`;
       const target = block?.inputs?.[name];
       if (typeof value !== 'string') {
-        // literal non-string JSON value: allowed, type-checked directly
+        // Literal JSON value: type-checked directly; bindings may still sit
+        // inside its strings (deep-resolved at run time), so walk and wire them.
         if (target) {
           const t = Array.isArray(value) ? 'array' : value === null ? 'null' : typeof value;
           if (t !== target.type) err(bp, `literal value has type ${t}, input "${name}" wants ${target.type}`);
         }
+        walkStrings(value, (s) => checkTemplate(s, bp, null));
         continue;
       }
-      const { parts, whole } = parseTemplate(value);
-      for (const part of parts) if (part.error) err(bp, part.error, 'wire syntax: {{inputs.<key>}} or {{nodes.<id>.output.<field>}} (SPEC §4)');
-      const refs = parts.filter((x) => x.ref);
-      if (whole) {
-        const src = refErrors(refs[0].ref, bp, target, { interpolated: false });
-        if (src && target && src.type !== target.type) {
-          err(bp, `type mismatch: {{${refs[0].raw}}} is ${src.type}, input "${name}" wants ${target.type}`, 'whole-value wires must match types exactly (SPEC §4)');
-        }
-        if (refs[0].ref.kind === 'node') edges.get(node.id)?.add(refs[0].ref.node);
-      } else {
-        if (refs.length > 0 && target && target.type !== 'string') {
-          err(bp, `interpolation is only valid into string inputs; "${name}" wants ${target.type}`);
-        }
-        for (const part of refs) {
-          const src = refErrors(part.ref, bp, target, { interpolated: true });
-          if (src && !['string', 'number', 'boolean'].includes(src.type)) {
-            err(bp, `cannot interpolate ${src.type} value {{${part.raw}}} into a string`);
+      checkTemplate(value, bp, target);
+
+      function checkTemplate(text, bp, target) {
+        const { parts, whole } = parseTemplate(text);
+        for (const part of parts) if (part.error) err(bp, part.error, 'wire syntax: {{inputs.<key>}} or {{nodes.<id>.output.<field>}} (SPEC §4)');
+        const refs = parts.filter((x) => x.ref);
+        if (whole) {
+          const src = refErrors(refs[0].ref, bp, target, { interpolated: false });
+          if (src && target && src.type !== 'unknown' && src.type !== target.type) {
+            err(bp, `type mismatch: {{${refs[0].raw}}} is ${src.type}, input "${name}" wants ${target.type}`, 'whole-value wires must match types exactly (SPEC §4)');
           }
-          if (part.ref.kind === 'node') edges.get(node.id)?.add(part.ref.node);
+          if (refs[0].ref.kind === 'node') edges.get(node.id)?.add(refs[0].ref.node);
+        } else {
+          if (refs.length > 0 && target && target.type !== 'string') {
+            err(bp, `interpolation is only valid into string inputs; "${name}" wants ${target.type}`);
+          }
+          for (const part of refs) {
+            const src = refErrors(part.ref, bp, target, { interpolated: true });
+            if (src && !['string', 'number', 'boolean', 'unknown'].includes(src.type)) {
+              err(bp, `cannot interpolate ${src.type} value {{${part.raw}}} into a string`);
+            }
+            if (part.ref.kind === 'node') edges.get(node.id)?.add(part.ref.node);
+          }
         }
       }
     }
@@ -156,7 +166,7 @@ export function validateWorkflow(workflow, library, file) {
         const ast = parseWhen(node.when);
         for (const clause of ast.clauses) {
           const src = refErrors(clause.ref, `${p}/when`, null, { interpolated: false });
-          if (src && clause.ordering && src.type !== 'number') {
+          if (src && clause.ordering && src.type !== 'number' && src.type !== 'unknown') {
             err(`${p}/when`, `ordering comparison needs a number ref; ${refText(clause.ref)} is ${src.type}`);
           }
           if (clause.ref.kind === 'node') edges.get(node.id)?.add(clause.ref.node);
@@ -210,7 +220,10 @@ export function validateWorkflow(workflow, library, file) {
   }
   for (const key of ['run', 'read', 'write']) {
     for (const [j, v] of (grants[key] ?? []).entries()) {
-      if (!declared[key].has(v)) {
+      const covered = key === 'run'
+        ? declared.run.has(v)
+        : [...declared[key]].some((blockGlob) => coveredBy(v, blockGlob));
+      if (!covered) {
         err(`/grants/${key}/${j}`, `grant "${v}" is not declared by any block in this workflow`, 'grants can only co-sign what blocks declare — remove it or use a block that needs it (SPEC §7)');
       }
     }

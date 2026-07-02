@@ -1,0 +1,13 @@
+{
+  "name": "extract",
+  "version": 1,
+  "kind": "fuzzy",
+  "inputs": {
+    "text": { "type": "string", "description": "the source text" },
+    "fields": { "type": "string", "description": "which fields to extract and their expected shape, in plain language" }
+  },
+  "outputs": {
+    "data": { "type": "object", "description": "one property per requested field; string values; empty string when absent" },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}

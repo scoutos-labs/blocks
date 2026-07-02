@@ -1,0 +1,12 @@
+{
+  "name": "summarize",
+  "version": 1,
+  "kind": "fuzzy",
+  "inputs": {
+    "text": { "type": "string", "description": "the source material" },
+    "style": { "type": "string", "required": false, "description": "the shape the summary should take, e.g. 'markdown changelog grouped by change type'" }
+  },
+  "outputs": {
+    "summary": { "type": "string" }
+  }
+}

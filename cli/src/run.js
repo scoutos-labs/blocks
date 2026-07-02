@@ -7,7 +7,8 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { join, resolve, relative, isAbsolute } from 'node:path';
 import { validateShape } from './schema.js';
-import { evalTemplate, parseTemplate } from './bindings.js';
+import { evalTemplate, parseTemplate, walkStrings } from './bindings.js';
+import { effectiveGlobs } from './globs.js';
 import { parseWhen, evalWhen } from './when.js';
 import { loadBlock } from './loader.js';
 import { formatErrors } from './validate.js';
@@ -123,16 +124,28 @@ function nodeCtx(state, inputs) {
 function dataDeps(node) {
   const deps = new Set();
   for (const value of Object.values(node.in ?? {})) {
-    if (typeof value !== 'string') continue;
-    for (const part of parseTemplate(value).parts) if (part.ref?.kind === 'node') deps.add(part.ref.node);
+    walkStrings(value, (s) => {
+      for (const part of parseTemplate(s).parts) if (part.ref?.kind === 'node') deps.add(part.ref.node);
+    });
   }
   return deps;
+}
+
+// Bindings resolve anywhere a string sits — including inside literal
+// object/array inputs like {"values": {"body": "{{nodes.draft.output.summary}}"}}.
+function deepResolve(raw, ctx) {
+  if (typeof raw === 'string') return evalTemplate(raw, ctx);
+  if (Array.isArray(raw)) return raw.map((v) => deepResolve(v, ctx));
+  if (raw !== null && typeof raw === 'object') {
+    return Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, deepResolve(v, ctx)]));
+  }
+  return raw;
 }
 
 function resolveNodeInputs(node, block, ctx) {
   const values = {};
   for (const [name, raw] of Object.entries(node.in ?? {})) {
-    values[name] = typeof raw === 'string' ? evalTemplate(raw, ctx) : raw;
+    values[name] = deepResolve(raw, ctx);
   }
   const errors = validateShape(values, block.inputs, `/nodes/${node.id}/in`);
   if (errors.length) {
@@ -171,7 +184,7 @@ export function execDeterministic(node, block, values, workflow, root) {
   }
 
   // entry variant: node script, argv-spawned, fs-fenced when the runtime can.
-  const writeGlobs = effective(block.permissions.write, grants.write);
+  const writeGlobs = effectiveGlobs(block.permissions.write, grants.write);
   for (const glob of writeGlobs) {
     if (!insideWorkspace(root, glob.replace(/\*.*$/, '.'))) refuse(`write grant ${glob} escapes the workspace`);
   }
@@ -185,11 +198,24 @@ export function execDeterministic(node, block, values, workflow, root) {
   writeFileSync(inputsFile, JSON.stringify(values));
   const nodeArgs = [];
   if (nodeSupportsPermissionModel()) {
-    nodeArgs.push('--permission', `--allow-fs-read=${realRoot}`);
+    nodeArgs.push('--permission', `--allow-fs-read=${realRoot}`, `--allow-fs-read=${realRoot}/*`);
     if (writeGlobs.length > 0) {
-      // Node's flag takes paths, not globs: allow the static prefix of each glob.
-      const targets = writeGlobs.map((g) => resolve(realRoot, g.split('*')[0] || '.'));
-      nodeArgs.push(...[...new Set(targets)].map((p) => `--allow-fs-write=${p}`));
+      // Node's flag takes paths, not globs: for a wildcard grant, allow the
+      // static prefix dir (created up front — the CLI is not the fenced party,
+      // and Node resolves allow-paths at boot so they must exist) plus its
+      // /* recursive form; an exact grant allows just that file.
+      const targets = new Set();
+      for (const g of writeGlobs) {
+        if (g.includes('*')) {
+          const prefix = resolve(realRoot, g.split('*')[0] || '.');
+          mkdirSync(prefix, { recursive: true });
+          targets.add(prefix);
+          targets.add(`${prefix}/*`);
+        } else {
+          targets.add(resolve(realRoot, g));
+        }
+      }
+      nodeArgs.push(...[...targets].map((p) => `--allow-fs-write=${p}`));
     }
   } else {
     console.error('note: this Node lacks the permission model — fs enforcement for entry blocks is audit-only (SPEC §2.2)');

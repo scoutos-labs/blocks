@@ -1,0 +1,14 @@
+{
+  "name": "llm-judge",
+  "version": 1,
+  "kind": "fuzzy",
+  "inputs": {
+    "candidate": { "type": "string", "description": "the artifact being judged" },
+    "criteria": { "type": "string", "description": "what good means here — the rubric the workflow author wrote" }
+  },
+  "outputs": {
+    "score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "verdict": { "type": "string", "enum": ["pass", "revise"] },
+    "reasons": { "type": "string", "description": "the decisive observations, tersely" }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "read-file",
+  "version": 1,
+  "kind": "deterministic",
+  "inputs": { "path": { "type": "string", "description": "workspace-relative path" } },
+  "outputs": { "text": { "type": "string" }, "bytes": { "type": "number" } },
+  "exec": { "entry": "run.mjs" },
+  "permissions": { "run": [], "read": ["**"], "write": [], "network": false }
+}

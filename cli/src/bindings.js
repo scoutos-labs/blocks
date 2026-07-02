@@ -36,6 +36,13 @@ export function parseTemplate(text) {
   return { parts, whole };
 }
 
+// Visit every string inside a JSON value (bindings can sit anywhere).
+export function walkStrings(value, fn) {
+  if (typeof value === 'string') fn(value);
+  else if (Array.isArray(value)) value.forEach((v) => walkStrings(v, fn));
+  else if (value !== null && typeof value === 'object') Object.values(value).forEach((v) => walkStrings(v, fn));
+}
+
 // Resolve a keypath into a value; returns { value } or { missing: keypath }.
 export function digPath(value, path) {
   let cur = value;

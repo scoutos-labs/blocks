@@ -1,0 +1,62 @@
+{
+  "name": "triage-bug-report",
+  "version": 1,
+  "notes": "Read a bug report, extract the facts, classify severity, and route a triage note to p1/ or backlog/.",
+  "inputs": {
+    "report": { "type": "string", "description": "workspace-relative path to the bug report file" }
+  },
+  "grants": { "run": [], "read": ["**"], "write": ["triage/**"] },
+  "nodes": [
+    {
+      "id": "read",
+      "block": "read-file@1",
+      "in": { "path": "{{inputs.report}}" }
+    },
+    {
+      "id": "facts",
+      "block": "extract@1",
+      "in": {
+        "text": "{{nodes.read.output.text}}",
+        "fields": "title (short), component, repro (one line)"
+      }
+    },
+    {
+      "id": "severity",
+      "block": "classify@1",
+      "in": {
+        "text": "{{nodes.read.output.text}}",
+        "labels": ["p1", "p2", "backlog"],
+        "instruction": "p1 = data loss, security exposure, or crash on a common path; p2 = broken but has a workaround; backlog = cosmetic, speculative, or feature request"
+      }
+    },
+    {
+      "id": "note",
+      "block": "render-template@1",
+      "in": {
+        "template": "# {title}\n\n- severity: {label} (confidence {confidence})\n- component: {component}\n- repro: {repro}\n- why: {reason}\n",
+        "values": {
+          "title": "{{nodes.facts.output.data.title}}",
+          "label": "{{nodes.severity.output.label}}",
+          "confidence": "{{nodes.severity.output.confidence}}",
+          "component": "{{nodes.facts.output.data.component}}",
+          "repro": "{{nodes.facts.output.data.repro}}",
+          "reason": "{{nodes.severity.output.reason}}"
+        }
+      }
+    },
+    {
+      "id": "route-p1",
+      "block": "write-file@1",
+      "when": "nodes.severity.output.label == 'p1'",
+      "notes": "urgent lane",
+      "in": { "path": "triage/p1/latest.md", "content": "{{nodes.note.output.text}}" }
+    },
+    {
+      "id": "route-backlog",
+      "block": "write-file@1",
+      "when": "nodes.severity.output.label != 'p1'",
+      "notes": "everything else",
+      "in": { "path": "triage/backlog/latest.md", "content": "{{nodes.note.output.text}}" }
+    }
+  ]
+}

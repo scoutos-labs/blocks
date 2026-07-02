@@ -1,0 +1,15 @@
+{
+  "name": "classify",
+  "version": 1,
+  "kind": "fuzzy",
+  "inputs": {
+    "text": { "type": "string", "description": "the text to classify" },
+    "labels": { "type": "array", "items": { "type": "string" }, "description": "the closed set of allowed labels" },
+    "instruction": { "type": "string", "required": false, "description": "what each label means, in the workflow's own terms" }
+  },
+  "outputs": {
+    "label": { "type": "string", "description": "must be one of the input labels, verbatim" },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "reason": { "type": "string", "description": "one sentence, grounded in the text" }
+  }
+}

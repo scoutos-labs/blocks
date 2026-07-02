@@ -1,0 +1,12 @@
+{
+  "name": "render-template",
+  "version": 1,
+  "kind": "deterministic",
+  "inputs": {
+    "template": { "type": "string", "description": "text with {key} slots (single braces)" },
+    "values": { "type": "object", "description": "slot name -> string/number/boolean" }
+  },
+  "outputs": { "text": { "type": "string" } },
+  "exec": { "entry": "run.mjs" },
+  "permissions": { "run": [], "read": [], "write": [], "network": false }
+}
