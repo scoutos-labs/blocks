@@ -1,0 +1,63 @@
+{
+  "workflow": "changelog-from-git",
+  "workflowFile": "workflows/changelog-from-git.workflow.json",
+  "workflowHash": "sha256:4533c179299fb52f35ab1aa1da208658aaa1a25cc6cde26cf3fb48c3ae0fd1d9",
+  "runId": "r-269b010f",
+  "startedAt": "2026-07-02T15:23:25.290Z",
+  "inputs": {
+    "range": "HEAD~4..HEAD"
+  },
+  "nodes": {
+    "log": {
+      "status": "done",
+      "blockHash": "sha256:17d51bbcd25bca311d25a640057a73fcf5ce15c9c6901eaed42228ebed23c3ea",
+      "attempts": 1,
+      "output": {
+        "text": "37f938b 2026-07-02 step 1: SPEC.md (normative spec) + repo skeleton\n9f4638a 2026-07-02 step 2: CLI core — loader, schema-lite, wires, gates, validator, graph\ne04d18e 2026-07-02 steps 3+4: deterministic runtime (exec/plan/run-state) + fuzzy contract machinery (check-output/record)\nc17548a 2026-07-02 step 5: runner + composer skills, link and scaffold verbs"
+      }
+    },
+    "draft": {
+      "status": "done",
+      "input": {
+        "text": "37f938b 2026-07-02 step 1: SPEC.md (normative spec) + repo skeleton\n9f4638a 2026-07-02 step 2: CLI core — loader, schema-lite, wires, gates, validator, graph\ne04d18e 2026-07-02 steps 3+4: deterministic runtime (exec/plan/run-state) + fuzzy contract machinery (check-output/record)\nc17548a 2026-07-02 step 5: runner + composer skills, link and scaffold verbs",
+        "style": "markdown changelog grouped by change type (Features / Fixes / Docs / Internal), terse, user-facing, keep short hashes"
+      },
+      "blockHash": "sha256:cc64f0d1d0f4e1e4daebd6a802759a316f86b33cc4cdd96b9bef0c9b18ccc4d2",
+      "attempts": 1,
+      "output": {
+        "summary": "## Docs\n- Normative SPEC and repository skeleton (37f938b)\n\n## Internal\n- CLI core: block loader, schema-lite, wires, gates, validator, and graph rendering (9f4638a)\n- Deterministic runtime (exec/plan/run-state) and fuzzy contract machinery (check-output/record) (e04d18e)\n- Runner and composer skills, plus link and scaffold verbs (c17548a)"
+      }
+    },
+    "judge": {
+      "status": "done",
+      "input": {
+        "candidate": "## Docs\n- Normative SPEC and repository skeleton (37f938b)\n\n## Internal\n- CLI core: block loader, schema-lite, wires, gates, validator, and graph rendering (9f4638a)\n- Deterministic runtime (exec/plan/run-state) and fuzzy contract machinery (check-output/record) (e04d18e)\n- Runner and composer skills, plus link and scaffold verbs (c17548a)",
+        "criteria": "Every entry traces to a commit in the log below — no invented changes. Grouped by change type. Terse and user-facing. Log:\n37f938b 2026-07-02 step 1: SPEC.md (normative spec) + repo skeleton\n9f4638a 2026-07-02 step 2: CLI core — loader, schema-lite, wires, gates, validator, graph\ne04d18e 2026-07-02 steps 3+4: deterministic runtime (exec/plan/run-state) + fuzzy contract machinery (check-output/record)\nc17548a 2026-07-02 step 5: runner + composer skills, link and scaffold verbs"
+      },
+      "blockHash": "sha256:4f22ff367f1bd822a72dbfe91b2b4519e5d4dbe7bdebe08c5c03a421a3cc2997",
+      "attempts": 1,
+      "output": {
+        "score": 0.85,
+        "verdict": "pass",
+        "reasons": "All four entries trace to commits in the log with matching hashes; grouped by type; terse. Nit: 'step N' framing from the commit subjects is dropped, which is fine for user-facing tone."
+      }
+    },
+    "render": {
+      "status": "done",
+      "blockHash": "sha256:010c1c7921816c58542a61303b355e9dec1ba7744b833aeb9eb6de86501e9268",
+      "attempts": 1,
+      "output": {
+        "text": "# Changelog\n\n_range: HEAD~4..HEAD — judged 0.85_\n\n## Docs\n- Normative SPEC and repository skeleton (37f938b)\n\n## Internal\n- CLI core: block loader, schema-lite, wires, gates, validator, and graph rendering (9f4638a)\n- Deterministic runtime (exec/plan/run-state) and fuzzy contract machinery (check-output/record) (e04d18e)\n- Runner and composer skills, plus link and scaffold verbs (c17548a)\n"
+      }
+    },
+    "publish": {
+      "status": "done",
+      "blockHash": "sha256:33bab6e50d95150ef16c9214636210af983d2ea910880c113eb49acf040ae7bb",
+      "attempts": 1,
+      "output": {
+        "path": "CHANGELOG.md",
+        "bytes": 394
+      }
+    }
+  }
+}

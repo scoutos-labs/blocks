@@ -208,7 +208,7 @@ One execution = one file: `runs/<workflow>-<runId>.run.json`.
 
 - Effective capability = `block.permissions ∩ workflow.grants`, computed per node. For `run` the intersection is exact binary names; for `read`/`write` it is **cover semantics**: a granted glob is effective only if some block declaration covers it (`**` covers everything, `dir/**` covers `dir/...`, otherwise exact match). A workflow may not grant anything no block declared (a workflow granting `run: ["rm"]` when no block declares `rm` fails validation).
 - argv blocks: `argv[0]` must be inside the effective `run` set at exec time, again (defense in depth).
-- All paths workspace-relative; `..` and absolute paths rejected at validation *and* at exec time after resolve+normalize.
+- All paths workspace-relative. Declared path globs (block permissions, workflow grants) are rejected at validation if absolute or containing `..`; runtime path *values* (which may flow from bindings) are resolved, normalized, and rejected at exec time — the validator cannot know which string inputs are paths.
 - No `{{env.*}}` bindings; run-state never persists process environment.
 - An input schema may set `"secret": true`: its value is passed to the block but stored in run-state as `sha256:<digest>` only.
 - `runs/` is gitignored; curated examples are committed under `examples/runs/` after manual review.

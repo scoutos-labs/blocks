@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, cpSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, cpSync, existsSync, readdirSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -155,6 +155,54 @@ test('run-state carries no node-level timestamps and hashes every executed block
     assert.ok(rec.blockHash.startsWith('sha256:'));
     assert.ok(!('finishedAt' in rec) && !('startedAt' in rec), 'no timestamps inside nodes');
   }
+});
+
+test('path escape is refused at exec: ../ and absolute paths write nothing, exit 3', () => {
+  const root = tmp();
+  cpSync(ROOT, root, { recursive: true });
+  cpSync(join(dirname(ROOT), '..', '..', '..', 'blocks', 'write-file'), join(root, 'blocks', 'write-file'), { recursive: true });
+  const wfFile = join(root, 'workflows', 'escape.workflow.json');
+  writeFileSync(wfFile, JSON.stringify({
+    name: 'fixture-escape', version: 1,
+    inputs: { path: { type: 'string' } },
+    grants: { run: [], read: [], write: ['**'] },
+    nodes: [{ id: 'w', block: 'write-file@1', in: { path: '{{inputs.path}}', content: 'pwned' } }],
+  }));
+  for (const evil of ['../ESCAPED.md', '/tmp/ESCAPED.md']) {
+    const r = blocks(['exec', wfFile, '--out', join(root, 'e.run.json'), '--input', `path=${evil}`], { root, expectFail: true });
+    assert.equal(r.code, 3, `exit 3 for ${evil}: ${r.stderr}`);
+    assert.ok(r.stderr.includes('escapes the workspace'), r.stderr);
+  }
+  assert.ok(!existsSync(join(dirname(root), 'ESCAPED.md')) && !existsSync('/tmp/ESCAPED.md'), 'nothing was written outside');
+});
+
+test('a write:["**"] grant is honored (workspace root is inside the workspace)', () => {
+  const root = tmp();
+  cpSync(ROOT, root, { recursive: true });
+  cpSync(join(dirname(ROOT), '..', '..', '..', 'blocks', 'write-file'), join(root, 'blocks', 'write-file'), { recursive: true });
+  const wfFile = join(root, 'workflows', 'star.workflow.json');
+  writeFileSync(wfFile, JSON.stringify({
+    name: 'fixture-star', version: 1,
+    grants: { run: [], read: [], write: ['**'] },
+    nodes: [{ id: 'w', block: 'write-file@1', in: { path: 'STAR_OK.md', content: 'ok' } }],
+  }));
+  blocks(['exec', wfFile, '--out', join(root, 's.run.json')], { root });
+  assert.ok(existsSync(join(realpathSync(root), 'STAR_OK.md')), 'file written at workspace root');
+});
+
+test('exec cleans up its temp inputs file even when the entry script fails', () => {
+  const root = tmp();
+  cpSync(ROOT, root, { recursive: true });
+  cpSync(join(dirname(ROOT), '..', '..', '..', 'blocks', 'write-file'), join(root, 'blocks', 'write-file'), { recursive: true });
+  const wfFile = join(root, 'workflows', 'escape.workflow.json');
+  writeFileSync(wfFile, JSON.stringify({
+    name: 'fixture-escape', version: 1,
+    grants: { run: [], read: [], write: ['**'] },
+    nodes: [{ id: 'w', block: 'write-file@1', in: { path: '../nope.md', content: 'x' } }],
+  }));
+  blocks(['exec', wfFile, '--out', join(root, 'e.run.json')], { root, expectFail: true });
+  const leftovers = readdirSync(join(realpathSync(root), 'runs')).filter((f) => f.startsWith('.in-'));
+  assert.deepEqual(leftovers, [], 'no .in-* temp files left behind');
 });
 
 test('secret workflow inputs are digested in run-state', () => {

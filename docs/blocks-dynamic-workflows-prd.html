@@ -64,7 +64,7 @@
 <h2 id="constraints">Constraints (security &amp; privacy)</h2>
 <ul>
   <li><strong>Command injection:</strong> inputs pass as argv arrays / env-file only; the CLI never builds shell strings. Fixture: binding value <code>&quot;; rm -rf .&quot;</code> must arrive as a literal argument.</li>
-  <li><strong>Path escape:</strong> paths resolved+normalized against workspace root; absolute paths and <code>..</code> rejected at validate <em>and</em> exec time.</li>
+  <li><strong>Path escape:</strong> declared path globs rejected at validate time if absolute or containing <code>..</code>; runtime path values (which may flow from bindings) resolved+normalized and rejected at exec time with a test fixture (<code>../ESCAPED.md</code>, <code>/tmp/ESCAPED.md</code> → exit 3, nothing written).</li>
   <li><strong>Prompt injection:</strong> fuzzy output can only take the declared shape; a poisoned judge at worst picks a wrong <em>declared</em> branch, never runs undeclared code. Documented residual risk.</li>
   <li><strong>Secrets:</strong> no <code>{{env.*}}</code> bindings in v1; run-state never persists process env; <code>runs/</code> gitignored; grep check in validation suite.</li>
   <li><strong>Tampered blocks:</strong> workflow <code>grants</code> ∩ block permissions; run-state block hashes make drift auditable.</li>

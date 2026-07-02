@@ -1,0 +1,78 @@
+{
+  "workflow": "triage-bug-report",
+  "workflowFile": "workflows/triage-bug-report.workflow.json",
+  "workflowHash": "sha256:beaf78897ca6cdb747286da1fab25b76e3db117c6dfe4fad33d054207ab65a1b",
+  "runId": "r-e3b8418b",
+  "startedAt": "2026-07-02T15:24:46.061Z",
+  "inputs": {
+    "report": "examples/bug-report.md"
+  },
+  "nodes": {
+    "read": {
+      "status": "done",
+      "blockHash": "sha256:c5305cb7caa20c262cd410b27264e55637bc2b8c426a29e5c43f7b424b356950",
+      "attempts": 1,
+      "output": {
+        "text": "From: a frustrated user\n\nEvery time I hit cmd-S to save my project the editor just dies. No error,\nwindow gone. When I reopen, the last twenty minutes of work are missing.\nThis happens on every project, every save. macOS 15, build 2.3.1.\n\nAlso the toolbar icons look slightly blurry on my external monitor,\nbut honestly I don't care about that right now.\n",
+        "bytes": 355
+      }
+    },
+    "facts": {
+      "status": "done",
+      "input": {
+        "text": "From: a frustrated user\n\nEvery time I hit cmd-S to save my project the editor just dies. No error,\nwindow gone. When I reopen, the last twenty minutes of work are missing.\nThis happens on every project, every save. macOS 15, build 2.3.1.\n\nAlso the toolbar icons look slightly blurry on my external monitor,\nbut honestly I don't care about that right now.\n",
+        "fields": "title (short), component, repro (one line)"
+      },
+      "blockHash": "sha256:116c99ef9894b840bdd3256ab319940a7f5aa66a12cd37fafa7442474f416e7e",
+      "attempts": 1,
+      "output": {
+        "data": {
+          "title": "Editor crashes on save with data loss",
+          "component": "editor",
+          "repro": "press cmd-S in any project — crash every time, ~20 min of work lost"
+        },
+        "confidence": 0.85
+      }
+    },
+    "severity": {
+      "status": "done",
+      "input": {
+        "text": "From: a frustrated user\n\nEvery time I hit cmd-S to save my project the editor just dies. No error,\nwindow gone. When I reopen, the last twenty minutes of work are missing.\nThis happens on every project, every save. macOS 15, build 2.3.1.\n\nAlso the toolbar icons look slightly blurry on my external monitor,\nbut honestly I don't care about that right now.\n",
+        "labels": [
+          "p1",
+          "p2",
+          "backlog"
+        ],
+        "instruction": "p1 = data loss, security exposure, or crash on a common path; p2 = broken but has a workaround; backlog = cosmetic, speculative, or feature request"
+      },
+      "blockHash": "sha256:6ab9fb28f8a208026781d080e606a36b083cb2a30518a728dfb89e89d2687de9",
+      "attempts": 1,
+      "output": {
+        "label": "p1",
+        "confidence": 0.9,
+        "reason": "Reproducible crash on the core save path with permanent data loss ('last twenty minutes of work are missing')."
+      }
+    },
+    "note": {
+      "status": "done",
+      "blockHash": "sha256:010c1c7921816c58542a61303b355e9dec1ba7744b833aeb9eb6de86501e9268",
+      "attempts": 1,
+      "output": {
+        "text": "# Editor crashes on save with data loss\n\n- severity: p1 (confidence 0.9)\n- component: editor\n- repro: press cmd-S in any project — crash every time, ~20 min of work lost\n- why: Reproducible crash on the core save path with permanent data loss ('last twenty minutes of work are missing').\n"
+      }
+    },
+    "route-p1": {
+      "status": "done",
+      "blockHash": "sha256:33bab6e50d95150ef16c9214636210af983d2ea910880c113eb49acf040ae7bb",
+      "attempts": 1,
+      "output": {
+        "path": "triage/p1/latest.md",
+        "bytes": 290
+      }
+    },
+    "route-backlog": {
+      "status": "skipped",
+      "reason": "gate false: nodes.severity.output.label != 'p1'"
+    }
+  }
+}

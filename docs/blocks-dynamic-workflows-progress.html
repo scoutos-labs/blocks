@@ -7,8 +7,8 @@
 <style>
   :root { --ink:#1a1d23; --muted:#6b7280; --line:#e5e7eb; --ok:#0f6b4f; --warn:#b45309; --bad:#b91c1c; --bg:#fafaf8; --card:#fff; }
   body { font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:var(--bg); margin:0; padding:2rem 1rem; }
-  main { max-width:900px; margin:0 auto; }
-  h1 { font-size:1.5rem; } h2 { font-size:1.15rem; margin-top:2rem; border-bottom:1px solid var(--line); padding-bottom:.3rem; }
+  main { max-width:920px; margin:0 auto; }
+  h1 { font-size:1.5rem; } h2 { font-size:1.15rem; margin-top:2rem; border-bottom:1px solid var(--line); padding-bottom:.3rem; } h3 { font-size:1rem; }
   code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.85em; }
   code { background:#eef0ee; padding:.1em .35em; border-radius:4px; }
   pre { background:#14171c; color:#d8dee4; padding:1rem; border-radius:8px; overflow-x:auto; }
@@ -16,51 +16,72 @@
   th, td { border:1px solid var(--line); padding:.45rem .65rem; text-align:left; vertical-align:top; }
   th { background:#f3f4f1; }
   .chip { display:inline-block; font-size:.75rem; font-weight:600; padding:.1rem .55rem; border-radius:999px; color:#fff; }
-  .planned{background:#6b7280}.inprogress{background:#1d4ed8}.pass{background:var(--ok)}.fail{background:var(--bad)}.repairing{background:var(--warn)}.blocked{background:#7c2d12}
+  .pass{background:var(--ok)}.fail{background:var(--bad)}.repairing{background:var(--warn)}
   .meta { color:var(--muted); font-size:.85rem; }
 </style>
 </head>
 <body>
 <main>
 <h1>Progress — blocks-dynamic-workflows</h1>
-<p class="meta">Companion to <a href="blocks-dynamic-workflows-prd.html">the PRD</a>. Overall status: <span class="chip inprogress">in-progress</span> (plan-review gate)</p>
+<p class="meta">Companion to <a href="blocks-dynamic-workflows-prd.html">the PRD</a>. Overall status: <span class="chip pass">complete</span> — all 7 steps passed; implementation review blockers repaired and re-verified.</p>
 
 <h2>Step checklist</h2>
 <table>
   <tr><th>Step</th><th>Status</th><th>Evidence</th><th>Repairs</th></tr>
-  <tr><td>1 — SPEC.md + skeleton</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>2 — CLI core (validate/list/graph)</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>3 — Deterministic runtime (exec/plan/run-state)</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>4 — Fuzzy machinery (check-output/record)</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>5 — Runner + composer skills</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>6 — Block library + 2 example workflows</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>7 — README + taste pass + full validation</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
+  <tr><td>1 — SPEC.md + skeleton</td><td><span class="chip pass">pass</span></td><td>SPEC.md §1–§9 (all required sections); dirs created; <code>runs/</code> gitignored</td><td>0</td></tr>
+  <tr><td>2 — CLI core (validate/list/graph)</td><td><span class="chip pass">pass</span></td><td>29 tests green at step end; every failure mode fixtured; cyclic fixture exits 1 naming <code>a -&gt; b -&gt; a</code>; errors carry file + JSON-pointer + hint</td><td>0</td></tr>
+  <tr><td>3 — Deterministic runtime</td><td><span class="chip pass">pass</span></td><td>Double-run <code>.nodes</code> byte-identical; hostile binding <code>"; rm -rf . #x $(whoami) `id`</code> arrives literal; exit-3 fence unit-proven; resume via <code>--state</code></td><td>2 (topo-order reversal bug; macOS symlink components broke Node's permission model — realpath everything)</td></tr>
+  <tr><td>4 — Fuzzy machinery</td><td><span class="chip pass">pass</span></td><td><code>check-output</code> names <code>/score · 2 is above maximum 1</code>; <code>record</code> repair loop: 3 attempts then node <code>failed</code>; refuses overwrite of done nodes</td><td>1 (record resolved workflow by filename convention — now stored in run-state as <code>workflowFile</code>)</td></tr>
+  <tr><td>5 — Runner + composer skills</td><td><span class="chip pass">pass</span></td><td>All skill-referenced verbs execute; <code>link</code> symlink verified; <code>link --check</code> confirms frontmatter uses only documented skill keys; scaffolded blocks load first try</td><td>0</td></tr>
+  <tr><td>6 — Block library + examples</td><td><span class="chip pass">pass</span></td><td>8 blocks (4 det / 4 fuzzy); both workflows validate + graph; <strong>dogfood:</strong> changelog run wrote this repo's CHANGELOG.md (judge 0.85 → gate passed); triage run routed p1, gate-skipped backlog; det <code>log</code> node reproduces identical output+hash across fresh runs; curated run-states in <code>examples/runs/</code></td><td>3 (glob grants needed cover semantics not string equality; write-file mkdir on existing parent hit the fs fence; dir grants need <code>/*</code> wildcard + pre-created dir for Node's boot-time path resolution)</td></tr>
+  <tr><td>7 — README + taste + validation</td><td><span class="chip pass">pass</span></td><td>README aha in ~300 words opening with the real dogfooded graph; quickstart runs verbatim; full suite green (below)</td><td>0</td></tr>
 </table>
 
-<h2>Validation dashboard</h2>
+<h2>Validation dashboard (final)</h2>
 <table>
-  <tr><th>Command</th><th>Last result</th></tr>
-  <tr><td><code>node --test cli/tests/</code></td><td>not yet run</td></tr>
-  <tr><td><code>blocks validate workflows/*.workflow.json</code></td><td>not yet run</td></tr>
-  <tr><td>determinism double-run diff</td><td>not yet run</td></tr>
-  <tr><td>secrets grep</td><td>not yet run</td></tr>
+  <tr><th>Command</th><th>Result</th></tr>
+  <tr><td><code>node --test 'cli/tests/*.test.js'</code></td><td>32 / 32 pass</td></tr>
+  <tr><td><code>blocks validate</code> × both workflows</td><td>✓ valid</td></tr>
+  <tr><td><code>blocks graph changelog-from-git</code></td><td>renders, exit 0</td></tr>
+  <tr><td><code>blocks list --json</code></td><td>8 blocks load</td></tr>
+  <tr><td>determinism double-run (<code>det-only</code> fixture)</td><td>IDENTICAL <code>.nodes</code></td></tr>
+  <tr><td>secrets grep over workflows/ examples/ blocks/</td><td>no hits</td></tr>
+  <tr><td>README quickstart verbatim</td><td>ok</td></tr>
 </table>
 
 <h2>Reviewer / judge findings</h2>
-<h3>Plan-review gate — PASSED after 1 repair</h3>
+<h3>Plan-review gate — passed after 1 repair</h3>
 <ul>
-  <li>9/10 areas pass; research adequacy was <em>uncertain</em> due to blocker <strong>B1</strong>: the "blocks load as real Claude Code skills" goal rested on an unverified assumption (custom <code>kind</code> frontmatter key tolerated) and no pinned discovery mechanism.</li>
-  <li><strong>B1 resolution:</strong> frontmatter restricted to documented skill keys only (<code>name</code>, <code>description</code>); <code>kind</code>/<code>version</code> moved into <code>contract.json</code>; discovery pinned as <code>blocks link</code> symlink into <code>.claude/skills/</code>, with Step 1 (SPEC) and Step 5 (link verb + <code>--check</code>) ACs updated.</li>
-  <li>Suggestions applied: S1 prompt-DAG sentence; S2 secrets-grep triage note; S3 explicit allowed-to-differ run-state fields; S4 <code>jq</code> replaced with <code>node -e</code> comparison.</li>
+  <li>Blocker B1 (plan): skill-loading claim unverified → resolved by restricting frontmatter to documented keys, moving <code>kind</code>/<code>version</code> to contract.json, pinning <code>blocks link</code> discovery. Suggestions S1–S4 applied.</li>
+</ul>
+<h3>Implementation review — passed after repairing 2 blockers + 2 recommendations</h3>
+<ul>
+  <li><strong>B1 <span class="chip fail">fail→fixed</span></strong>: <code>.gitignore</code> <code>runs/</code> (unanchored) also ignored <code>examples/runs/</code> — the curated dogfood evidence was silently uncommitted. Fixed to <code>/runs/</code>; examples committed.</li>
+  <li><strong>B2 <span class="chip fail">fail→fixed</span></strong>: <code>insideWorkspace()</code> treated the workspace root (<code>rel === ''</code>) as an escape, so a legitimate <code>write: ["**"]</code> grant was refused for entry blocks. Fixed + regression test (<code>STAR_OK.md</code> written at root).</li>
+  <li><strong>Rec 1 fixed</strong>: path-escape mitigation was implemented but untested → added exec tests: <code>../ESCAPED.md</code> and <code>/tmp/ESCAPED.md</code> exit 3, nothing written outside. SPEC §7 wording tightened (validate-time applies to declared globs, exec-time to runtime values).</li>
+  <li><strong>Rec 2 fixed</strong>: temp <code>.in-*</code> inputs file leaked when an entry script failed (<code>process.exit</code> skipped <code>finally</code>) → cleanup before exit + regression test; entry-script exit 3 now propagates as a refusal, not a generic failure.</li>
+  <li><strong>Taste 5/5 · Originality 5/5</strong> (rubric areas: README aha, graph output, error actionability, SKILL.md quality, five-word vocabulary, recognizability — all 5).</li>
+  <li>Honesty disclosures verified accurate: <code>network:false</code> audit-only; entry-block <code>read</code> grant not an enforcement boundary (whole-workspace read needed for module loading); secret-into-fuzzy-node persists plaintext (documented, not enforced).</li>
 </ul>
 
-<h2>Agent choices</h2>
-<p>Planner: <code>Plan</code> agent (read-only architect) — plan returned and folded into the PRD. Plan reviewer: <code>general-purpose</code> agent with read-only critic directives.</p>
+<h2>Files</h2>
+<p><code>SPEC.md</code> · <code>README.md</code> · <code>cli/bin/blocks</code> + <code>cli/src/</code> (loader, schema, bindings, when, validate, graph, globs, run, link, scaffold) · <code>cli/tests/</code> (3 suites, 32 tests, fixture root) · <code>blocks/</code> (git-log, read-file, write-file, render-template, classify, extract, llm-judge, summarize) · <code>skills/blocks-runner</code>, <code>skills/blocks-composer</code> · <code>workflows/</code> (changelog-from-git, triage-bug-report) · <code>examples/runs/</code> (2 curated run-states + triage note) · <code>CHANGELOG.md</code> (dogfood artifact)</p>
+
+<h2>Residual risks / follow-ups</h2>
+<ul>
+  <li><code>network: false</code> is a reviewed declaration, not sandbox-enforced (no containers in v1 — stated in SPEC §2.2/§9).</li>
+  <li>Entry blocks can read the whole workspace when running (Node permission model needs module access); narrower <code>read</code> globs are audit-only.</li>
+  <li>Headless fuzzy oracle (<code>--model</code> adapter so the CLI can run unattended) is an explicit v2 idea.</li>
+  <li>Parallel scheduling, loops/fan-out, and a block registry are explicit non-goals; revisit only with real usage.</li>
+</ul>
 
 <h2>Log</h2>
 <ul>
-  <li>2026-07-02T14:52Z — begin; repo git-initialized; handoff file created.</li>
-  <li>2026-07-02T15:0xZ — planner subagent returned 7-step plan; PRD written; key decision: CLI is the deterministic runtime, agent is driver + fuzzy oracle.</li>
+  <li>2026-07-02T14:52Z — begin; repo git-initialized.</li>
+  <li>2026-07-02T15:0xZ — planner returned 7-step plan; PRD written; design law fixed: CLI is the deterministic runtime.</li>
+  <li>2026-07-02T15:1xZ — plan-review gate: 1 blocker (skill-compat), resolved; plan approved.</li>
+  <li>2026-07-02T15:2x–17:4xZ — steps 1–6 implemented with per-step evidence; dogfood runs completed.</li>
+  <li>2026-07-02T18:1xZ — implementation review: 2 blockers + 2 recs; all repaired; 32/32 tests; complete.</li>
 </ul>
 </main>
 </body>

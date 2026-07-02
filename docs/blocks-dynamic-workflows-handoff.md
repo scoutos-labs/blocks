@@ -6,3 +6,5 @@
 2026-07-02T15:16:58Z step-4-done fuzzy machinery: check-output names /score above maximum 1; record repair loop 3 attempts
 2026-07-02T15:19:00Z step-5-done runner+composer skills, link/--check, new-block scaffold; evidence: all skill-referenced verbs execute; link symlink verified
 2026-07-02T15:26:19Z step-6-done 8 library blocks + 2 e2e workflows dogfooded (changelog on this repo, triage with p1 routing); det log node reproduces identical output+hash; curated run-states in examples/runs/
+2026-07-02T15:40:04Z step-7-done README + full validation green (32 tests)
+2026-07-02T15:40:04Z complete blocks-dynamic-workflows — impl review passed after repairing B1 (.gitignore anchoring) + B2 (workspace-root write grant) + 2 recs; taste 5/5 originality 5/5

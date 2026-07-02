@@ -99,7 +99,8 @@ function effective(list, grants) {
 function insideWorkspace(root, p) {
   const abs = resolve(root, p);
   const rel = relative(root, abs);
-  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
+  // rel === '' is the workspace root itself — inside, by definition.
+  return !rel.startsWith('..') && !isAbsolute(rel);
 }
 
 let permissionModelSupport; // memoized: does this node support --permission?
@@ -221,15 +222,22 @@ export function execDeterministic(node, block, values, workflow, root) {
     console.error('note: this Node lacks the permission model — fs enforcement for entry blocks is audit-only (SPEC §2.2)');
   }
   let stdout;
+  let execError;
   try {
     stdout = execFileSync(process.execPath, [...nodeArgs, join(realpathSync(block.dir), block.exec.entry), inputsFile], {
       cwd: realRoot, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, shell: false,
       env: { PATH: process.env.PATH },
     });
   } catch (e) {
-    fail(`node "${node.id}" entry script failed: ${(e.stderr || e.message || '').toString().slice(0, 500)}`);
+    execError = e; // fail() exits the process, so clean up first
   } finally {
     try { unlinkSync(inputsFile); } catch {}
+  }
+  if (execError) {
+    const detail = (execError.stderr || execError.message || '').toString().slice(0, 500);
+    const escaped = execError.status === 3;
+    if (escaped) refuse(`node "${node.id}" entry script: ${detail}`);
+    fail(`node "${node.id}" entry script failed: ${detail}`);
   }
   return captureOutput(block, stdout, node);
 }
