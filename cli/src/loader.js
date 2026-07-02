@@ -95,6 +95,30 @@ export function loadBlock(dir) {
   }
 
   const cf = contractFile;
+  // contracts are closed documents: unknown keys are invalid (PROTOCOL [BLK-5], [BLK-12])
+  const CONTRACT_KEYS = ['name', 'version', 'kind', 'inputs', 'outputs', 'exec', 'permissions'];
+  for (const key of Object.keys(contract)) {
+    if (!CONTRACT_KEYS.includes(key)) {
+      errors.push({ file: cf, pointer: `/${key}`, message: `unknown contract key "${key}"`, hint: `allowed: ${CONTRACT_KEYS.join(', ')}` });
+    }
+  }
+  if (contract.exec && typeof contract.exec === 'object' && !Array.isArray(contract.exec)) {
+    for (const key of Object.keys(contract.exec)) {
+      if (!['argv', 'capture', 'entry'].includes(key)) {
+        errors.push({ file: cf, pointer: `/exec/${key}`, message: `unknown exec key "${key}"`, hint: 'allowed: argv, capture, entry' });
+      }
+    }
+    if (contract.exec.entry !== undefined && contract.exec.capture !== undefined) {
+      errors.push({ file: cf, pointer: '/exec/capture', message: '"capture" applies only to the argv variant', hint: 'entry scripts always print a JSON object' });
+    }
+  }
+  if (contract.permissions && typeof contract.permissions === 'object' && !Array.isArray(contract.permissions)) {
+    for (const key of Object.keys(contract.permissions)) {
+      if (!['run', 'read', 'write', 'network'].includes(key)) {
+        errors.push({ file: cf, pointer: `/permissions/${key}`, message: `unknown permissions key "${key}"`, hint: 'allowed: run, read, write, network' });
+      }
+    }
+  }
   if (contract.name !== dirName) {
     errors.push({ file: cf, pointer: '/name', message: `contract name ${JSON.stringify(contract.name)} must equal directory name "${dirName}"` });
   }

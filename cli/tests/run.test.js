@@ -119,7 +119,7 @@ test('fuzzy pause, check-output, record with repair loop, gate skip, resume', ()
   assert.ok(overwrite.stderr.includes('refuses to overwrite'), overwrite.stderr);
 });
 
-test('record fails the node after 3 schema-invalid attempts', () => {
+test('record fails the node after 3 schema-invalid attempts, and failed is terminal', () => {
   const dir = tmp();
   const state = join(dir, 'run.json');
   const answer = join(dir, 'answer.json');
@@ -132,6 +132,15 @@ test('record fails the node after 3 schema-invalid attempts', () => {
   }
   const failed = JSON.parse(readFileSync(state, 'utf8'));
   assert.equal(failed.nodes.judge.status, 'failed');
+
+  // a 4th, VALID submission must be refused — no resurrection ([RNR-12])
+  writeFileSync(answer, JSON.stringify({ score: 0.9, verdict: 'pass' }));
+  const resurrect = blocks(['record', '--state', state, '--node', 'judge', '--output', answer], { expectFail: true });
+  assert.equal(resurrect.code, 2, resurrect.stderr);
+  assert.ok(resurrect.stderr.includes('terminal'), resurrect.stderr);
+  const after = JSON.parse(readFileSync(state, 'utf8'));
+  assert.equal(after.nodes.judge.status, 'failed', 'status unchanged');
+  assert.equal(after.nodes.judge.attempts, 3, 'attempts unchanged');
 });
 
 test('plan reports topo order, statuses, and the next pending node', () => {

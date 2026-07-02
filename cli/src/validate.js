@@ -30,6 +30,24 @@ export function validateWorkflow(workflow, library, file) {
   const errors = [];
   const err = (pointer, message, hint) => errors.push({ file, pointer, message, ...(hint ? { hint } : {}) });
 
+  // workflows and nodes are closed documents (PROTOCOL [WFL-6])
+  const WF_KEYS = ['name', 'version', 'notes', 'inputs', 'grants', 'nodes'];
+  for (const key of Object.keys(workflow)) {
+    if (!WF_KEYS.includes(key)) err(`/${key}`, `unknown workflow key "${key}"`, `allowed: ${WF_KEYS.join(', ')}`);
+  }
+  for (const key of Object.keys(workflow.grants ?? {})) {
+    if (!['run', 'read', 'write'].includes(key)) err(`/grants/${key}`, `unknown grants key "${key}"`, 'allowed: run, read, write');
+  }
+  if (Array.isArray(workflow.nodes)) {
+    const NODE_KEYS = ['id', 'block', 'in', 'when', 'after', 'notes'];
+    workflow.nodes.forEach((node, i) => {
+      if (node === null || typeof node !== 'object') return;
+      for (const key of Object.keys(node)) {
+        if (!NODE_KEYS.includes(key)) err(`/nodes/${i}/${key}`, `unknown node key "${key}"`, `allowed: ${NODE_KEYS.join(', ')}`);
+      }
+    });
+  }
+
   if (typeof workflow.name !== 'string' || !ID_RE.test(workflow.name)) {
     err('/name', `workflow "name" must match ${ID_RE}, got ${JSON.stringify(workflow.name)}`);
   }

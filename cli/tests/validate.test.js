@@ -82,6 +82,19 @@ test('missing required input binding is rejected with a fix hint', () => {
   assert.ok(e.hint.includes('"in"'));
 });
 
+test('unknown keys are rejected: workflow, node, grants (closed documents)', () => {
+  const file = join(ROOT, 'workflows', 'valid.workflow.json');
+  const { workflow } = parseWorkflowFile(file);
+  const bad = structuredClone(workflow);
+  bad.vendorExt = true;
+  bad.grants.exec = ['x'];
+  bad.nodes[0].retries = 5;
+  const { errors } = validateWorkflow(bad, library, file);
+  assert.ok(errors.some((e) => e.message.includes('unknown workflow key "vendorExt"')));
+  assert.ok(errors.some((e) => e.message.includes('unknown grants key "exec"')));
+  assert.ok(errors.some((e) => e.message.includes('unknown node key "retries"')));
+});
+
 test('every error carries file and pointer', () => {
   for (const name of ['cyclic', 'bad-pin', 'unresolved-wire', 'type-mismatch', 'dup-id']) {
     for (const e of check(name).errors) {
@@ -89,4 +102,28 @@ test('every error carries file and pointer', () => {
       assert.notEqual(e.pointer, undefined, `${name}: error has a pointer`);
     }
   }
+});
+
+test('unknown contract keys, unknown exec keys, and capture-on-entry are rejected', async () => {
+  const { mkdtempSync, cpSync, readFileSync: rf, writeFileSync: wfs } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { loadBlock } = await import('../src/loader.js');
+  const dir = join(mkdtempSync(join(tmpdir(), 'blocks-loader-')), 'echo-text');
+  cpSync(join(ROOT, 'blocks', 'echo-text'), dir, { recursive: true });
+  const cfile = join(dir, 'contract.json');
+  const contract = JSON.parse(rf(cfile, 'utf8'));
+  contract.vendor = 'x';
+  contract.exec.shell = true;
+  wfs(cfile, JSON.stringify(contract));
+  const { errors } = loadBlock(dir);
+  assert.ok(errors.some((e) => e.message.includes('unknown contract key "vendor"')));
+  assert.ok(errors.some((e) => e.message.includes('unknown exec key "shell"')));
+
+  const wc = JSON.parse(rf(join(ROOT, 'blocks', 'word-count', 'contract.json'), 'utf8'));
+  const dir2 = join(mkdtempSync(join(tmpdir(), 'blocks-loader-')), 'word-count');
+  cpSync(join(ROOT, 'blocks', 'word-count'), dir2, { recursive: true });
+  wc.exec.capture = 'json';
+  wfs(join(dir2, 'contract.json'), JSON.stringify(wc));
+  const r2 = loadBlock(dir2);
+  assert.ok(r2.errors.some((e) => e.message.includes('"capture" applies only to the argv variant')));
 });

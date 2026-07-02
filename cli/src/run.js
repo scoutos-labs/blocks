@@ -391,6 +391,7 @@ function recordVerb(args, { root, flag, usage }) {
   if (!rec) fail(`run-state has no node "${nodeId}" (nodes: ${Object.keys(state.nodes ?? {}).join(', ')})`, 2);
   if (rec.status === 'done') fail(`node "${nodeId}" is already done — record refuses to overwrite`, 2);
   if (rec.status === 'skipped') fail(`node "${nodeId}" was skipped by its gate`, 2);
+  if (rec.status === 'failed') fail(`node "${nodeId}" has failed in this run — a failed node is terminal; start a new run`, 2);
   if (rec.input === undefined) fail(`node "${nodeId}" has not been reached yet — run \`blocks exec --state ${stateFile}\` first`, 2);
 
   // find the block via the workflow file recorded in state
