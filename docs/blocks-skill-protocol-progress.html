@@ -21,24 +21,31 @@
 <body>
 <main>
 <h1>Progress — blocks-skill-protocol</h1>
-<p class="meta">Companion to <a href="blocks-skill-protocol-prd.html">the PRD</a>. Status: <span class="chip inprogress">in-progress</span></p>
+<p class="meta">Companion to <a href="blocks-skill-protocol-prd.html">the PRD</a>. Status: <span class="chip pass">complete</span> — published at <a href="https://zenbin.org/p/blocks-skill-protocol">zenbin.org/p/blocks-skill-protocol</a></p>
 
 <h2>Step checklist</h2>
 <table>
   <tr><th>Step</th><th>Status</th><th>Evidence</th><th>Repairs</th></tr>
-  <tr><td>1 — Consistency harness</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>2 — §0–§11 documents half</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>3 — §12–§17 + appendices</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>4 — Adversarial review gate</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>5 — Publish to zenbin (DRAFT)</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>6 — Final sweep + SPEC.md link</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
+  <tr><td>1 — Consistency harness</td><td><span class="chip pass">pass</span></td><td><code>docs/blocks-protocol-check.mjs</code>: 34 named failures against a stub (falsifiable before the document existed); checks verbs, exit codes, SKILL_KEYS, MAX_ATTEMPTS, schema-lite keys/types, gate ops, run fields, statuses, verbatim examples, hash-preimage recompute, req-ID gaplessness + checklist coverage, RFC lint, anchors, hygiene</td><td>0</td></tr>
+  <tr><td>2 — §0–§11 documents half</td><td><span class="chip pass">pass</span></td><td>Grammars transcribed from parser behavior with parse/don't-parse vectors; hand-eval of the changelog gate vs run r-269b010f in Appendix B; harness green</td><td>0</td></tr>
+  <tr><td>3 — §12–§17 + appendices</td><td><span class="chip pass">pass</span></td><td>101 requirement IDs (13 prefixes), Appendix C covers 100% (script-verified); Appendix D catalogues all 8 SPEC-vs-code discrepancies</td><td>0</td></tr>
+  <tr><td>4 — Adversarial review gate</td><td><span class="chip pass">pass</span></td><td>Implementer persona: 3 pseudo-code derivations (record loop, glob cover, deep resolution) — 2 MATCH, 1 DIVERGES exposing a real impl bug; editor persona: untestable-MUST hunt, weasel-word grep (clean), duplication + hole census. 4 blockers → all repaired (see below)</td><td>1 full pass</td></tr>
+  <tr><td>5 — Publish to zenbin (DRAFT)</td><td><span class="chip pass">pass</span></td><td>Markdown probe rendered as raw plaintext → fallback per plan: committed generator <code>docs/blocks-protocol-html.mjs</code> (PROTOCOL.md stays single source) → published 200; <code>/raw</code> bytes IDENTICAL to generated HTML; live screenshot verifies draft banner, tables, req-ID styling</td><td>1 (markdown → HTML fallback, as planned)</td></tr>
+  <tr><td>6 — Final sweep + SPEC.md link</td><td><span class="chip pass">pass</span></td><td>Harness ALL PASS · 34/34 tests · both workflows validate · explainer harness still green · SPEC.md scoping note added (2 lines)</td><td>0</td></tr>
 </table>
 
-<h2>Agent choices</h2>
-<p>Planner: <code>Plan</code> (read-only) — found the 8-item discrepancy register. Plan reviewer + impl reviewer: <code>general-purpose</code> read-only critics.</p>
-
 <h2>Reviewer findings</h2>
-<p>Plan gate: pending.</p>
+<h3>Plan gate — NO BLOCKERS</h3>
+<p>All 10 areas pass; reviewer independently verified 3 of the 8 discrepancy-register claims against the code (all true). Suggestions folded in: hash-preimage recompute in harness; zenbin terminal fallback defined; firmer step-4 evidence.</p>
+<h3>Adversarial implementation gate — 4 blockers, all repaired</h3>
+<ul>
+  <li><strong>B1 (real impl bug):</strong> <code>record</code> resurrected <code>failed</code> nodes — a 4th valid submission flipped failed→done, contradicting [RNR-12]. Fixed in <code>run.js</code> (+ regression test: 4th valid submission refused, exit 2, attempts unchanged). Spec: failed added to [RNR-10]; [RNR-11] counts parseable-JSON submissions only.</li>
+  <li><strong>B2 (real impl gap + spec hole):</strong> unknown-key strictness was claimed as the extension policy but unenforced and half-unstated. New [BLK-12]/[WFL-6]/[SCH-8]; enforcement added in loader (contract/exec/permissions) and validator (workflow/node/grants) + tests; capture-on-entry now rejected.</li>
+  <li><strong>B3:</strong> [PRM-6] path-refusal was unimplementable by a runner (it can't know which inputs are paths). Rescoped to runner-derived paths; new [BLK-13]: path-accepting blocks self-refuse escapes with the exit-3 convention (write-file/read-file already comply).</li>
+  <li><strong>B4:</strong> deterministic-failure semantics unspecified. New [RNR-17]: nothing recorded, node stays pending, contract-failure class — except entry exit-3 ⇒ permission refusal; [RUN-3] notes failed is fuzzy-only in Draft 01.</li>
+  <li><strong>Nits fixed:</strong> Appendix B wire mislabel ([WIR-1] not [WIR-2]); [WIR-3] nested-literal typing; [GAT-4] absent inputs; [RNR-5] per-node order pinned; [RUN-8] same-external-state premise; [ORC-2] made transcript-observable; [BLK-4] prose demands demoted to SHOULD; [SEC-1]/[SEC-2] dedupe; un-ID'd intro MUSTs got [SCH-8]/[WIR-9]/[GAT-7].</li>
+  <li><strong>Scores:</strong> taste 4, originality 4 (≥4 bar met); honesty table and grammar vectors scored 5.</li>
+</ul>
 
 <h2>Log</h2>
 <ul>

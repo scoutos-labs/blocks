@@ -1,5 +1,7 @@
 # Blocks — Specification v1
 
+> Scope: this document is normative for this repository's implementation and layout. The interoperability protocol — what *any* conforming implementation must do — is specified in [PROTOCOL.md](PROTOCOL.md) (Draft 01), which prevails on questions of protocol behavior.
+
 Five words, used the same way everywhere: **block**, **wire**, **gate**, **run**, **grant**.
 
 - A **block** is the atomic unit of work, shaped like a Claude Code skill.
