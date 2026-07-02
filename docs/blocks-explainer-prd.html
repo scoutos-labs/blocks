@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PRD — Blocks explainer (animated HTML)</title>
+<style>
+  :root { --ink:#1a1d23; --muted:#6b7280; --line:#e5e7eb; --bg:#fafaf8; --card:#fff; }
+  body { font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:var(--bg); margin:0; padding:2rem 1rem; }
+  main { max-width:900px; margin:0 auto; }
+  h1 { font-size:1.5rem; } h2 { font-size:1.15rem; margin-top:2rem; border-bottom:1px solid var(--line); padding-bottom:.3rem; }
+  code { font-family:ui-monospace,Menlo,monospace; font-size:.85em; background:#eef0ee; padding:.1em .35em; border-radius:4px; }
+  table { border-collapse:collapse; width:100%; margin:1rem 0; background:var(--card); }
+  th, td { border:1px solid var(--line); padding:.5rem .7rem; text-align:left; vertical-align:top; }
+  th { background:#f3f4f1; }
+  .meta { color:var(--muted); font-size:.85rem; }
+  .step { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:1rem 1.2rem; margin:1rem 0; }
+  .step h3 { margin-top:0; font-size:1rem; }
+  ul { padding-left:1.3rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Blocks explainer — animated, self-contained HTML</h1>
+<p class="meta">PRD · task slug <code>blocks-explainer</code> · created 2026-07-02 · deliverable <code>docs/blocks-explainer.html</code> + published copy on zenbin.org · status: plan approved</p>
+
+<h2>Definition</h2>
+<p>A single self-contained animated HTML document that explains the design and idea behind Blocks and shows that <strong>any agent</strong> (Claude Code, SDK agents, other vendors, a human) can drive it, because the whole interface is files + CLI verbs. It is an <em>engineering document, not a marketing site</em>: every number, hash, and output on the page comes from a committed artifact in this repo. The page must render from <code>file://</code>, with JS disabled (final-state fallback), behind a strict CSP (inline everything), and honor <code>prefers-reduced-motion</code>.</p>
+
+<h2>Design direction (fixed)</h2>
+<ul>
+  <li><strong>Concept:</strong> one drafting sheet — engineering-drawing title block (doc name, REV, date, SHEET 1 OF 1) instead of a hero banner; figures numbered like plates (FIG. 1 — RUN r-269b010f).</li>
+  <li><strong>Palette:</strong> paper #F2F5F7, blue-black ink; <strong>det = drafting blue, fuzzy = amber-bronze</strong> applied as a consistent two-ink system everywhere (schematic, code coloring, vocabulary strip); pass-green for results. No cream/terracotta, no dark+acid-green, no gradients.</li>
+  <li><strong>Type inversion:</strong> ui-monospace wherever the machine speaks (headlines, labels, CLI output, stamps); humanist system stack for narration only.</li>
+  <li><strong>Signature (the one animated element):</strong> the real <code>changelog-from-git</code> DAG executing as a stepped schematic: det nodes stamp sequentially with real 8-char hash chips, run breathes amber at fuzzy nodes until an answer clicks through the schema gate via a visible <code>blocks record</code> command, the <code>when</code> gate is drawn as a comparator evaluating <code>0.85 &gt;= 0.7</code> in the CLI lane. Autoplay on first visibility + prev/next controls; pauses offscreen. Everything else: quiet scroll reveals only.</li>
+  <li><strong>Copy voice:</strong> plain, specific, active; five-word vocabulary exactly as the repo uses it; README honesty register kept near-verbatim.</li>
+</ul>
+
+<h2>Content spine (6 sections, ~5 min read)</h2>
+<table>
+  <tr><th>#</th><th>Section</th><th>One job</th><th>Real artifact</th></tr>
+  <tr><td>0</td><td>Hero + animated run</td><td>Thesis line + show the run</td><td>5-node DAG matching <code>blocks graph</code>; values from run <code>r-269b010f</code></td></tr>
+  <tr><td>1</td><td>Read the run back</td><td>Decode the animation; state the design law verbatim as the punchline</td><td>run-state excerpt for <code>log</code>; "run twice, diff" from SPEC §6</td></tr>
+  <tr><td>2</td><td>A block is literally a skill</td><td>Anatomy, det vs fuzzy in the two inks</td><td><code>git-log/contract.json</code> beside <code>summarize/SKILL.md</code></td></tr>
+  <tr><td>3</td><td>Five words carry the system</td><td>wire/gate/run/grant; gate gets negative evidence, grant gets the intersection model</td><td>triage run's skipped <code>route-backlog</code>; changelog <code>grants</code> JSON</td></tr>
+  <tr><td>4</td><td>Any agent can be the oracle</td><td>The verbatim pause printout is the protocol; 4-column strip: Claude Code / SDK / other vendor / human</td><td><code>run.js</code> pause output; 3-attempt repair rule</td></tr>
+  <tr><td>5</td><td>Guarantees + colophon</td><td>Honesty register; non-goals; "this repo's CHANGELOG.md was written by the workflow above"</td><td>README guarantees; <code>judged 0.85</code> header</td></tr>
+</table>
+
+<h2>Plan — 6 steps</h2>
+<div class="step"><h3>Step 1 — Skeleton + design system</h3>
+<ul><li><strong>AC:</strong> opens from <code>file://</code> with JS disabled; exactly one <code>h1</code>; monotonic heading levels; zero external refs (<code>&lt;link&gt;</code>, <code>&lt;script src&gt;</code>, http(s) in src/href/url()/@import); all 6 sections with final copy; schematic present as static final-state SVG.</li>
+<li><strong>Evidence:</strong> node self-containment check; browser open.</li></ul></div>
+<div class="step"><h3>Step 2 — Real-artifact content pass</h3>
+<ul><li><strong>AC:</strong> every embedded snippet byte-matches its repo source (modulo trim/HTML-escape) and carries an HTML comment naming the source path; no invented hashes/scores/outputs; five words used only in the repo's sense.</li>
+<li><strong>Evidence:</strong> scratchpad node script diffs snippets against sources; grep for any hash/score absent from <code>examples/runs/*.json</code>.</li></ul></div>
+<div class="step"><h3>Step 3 — The orchestrated schematic</h3>
+<ul><li><strong>AC:</strong> ~8-state stepped machine; state order matches the runner protocol exactly (no parallel det stamps; fuzzy answers arrive via visible <code>record</code>; gate evaluated in the CLI lane); reduced-motion renders completed final state; JS-disabled default = completed run; no timers while offscreen; keyboard-operable step controls.</li>
+<li><strong>Evidence:</strong> node check for <code>prefers-reduced-motion</code> + <code>IntersectionObserver</code> and no unconditional <code>setInterval</code>; reviewer steps through in browser.</li></ul></div>
+<div class="step"><h3>Step 4 — Quiet reveals + accessibility</h3>
+<ul><li><strong>AC:</strong> body ink on paper ≥ 7:1; det/fuzzy ink text usages ≥ 4.5:1; reveals gated behind reduced-motion; semantic landmarks; visible focus.</li>
+<li><strong>Evidence:</strong> node contrast computation on declared tokens; keyboard tab-through.</li></ul></div>
+<div class="step"><h3>Step 5 — Validation harness + budget</h3>
+<ul><li><strong>AC:</strong> one scratchpad node script asserts self-containment, size ≤ 200 KB (target 150), one h1 + sane headings, reduced-motion present, title+meta description present, no secrets (<code>sk-</code>, <code>AKIA</code>, <code>ghp_</code>, <code>Bearer </code>) and no <code>/Users/</code> paths.</li>
+<li><strong>Evidence:</strong> all-pass checklist output.</li></ul></div>
+<div class="step"><h3>Step 6 — Publish to zenbin.org</h3>
+<ul><li><strong>AC:</strong> API discovered at publish time from zenbin.org; harness re-run on exact upload bytes; published URL renders identical to local (or graceful static fallback if CSP blocks inline JS).</li>
+<li><strong>Evidence:</strong> published URL; local-vs-published comparison.</li></ul></div>
+
+<h2>Taste / originality criteria (score ≥ 4 required)</h2>
+<ul>
+  <li><strong>Fails if:</strong> gradient hero, emoji icons, drop-shadow card grids, fake macOS terminal with traffic lights, marketing verbs, a checkmark where a comparator belongs, any number not traceable to a run file.</li>
+  <li><strong>Passes if:</strong> reads as one drafting sheet (title block, FIG plates); the two-ink det/fuzzy split works as a system a reader can decode anywhere on the page; hash chips read as inspection stamps; type inversion is felt; exactly one animated element; CLI output rendered as a ruled spec plate, not skeuomorphic terminal.</li>
+</ul>
+
+<h2>Constraints / security</h2>
+<ul>
+  <li>Self-contained: no external requests of any kind; publishable behind strict CSP.</li>
+  <li>No secrets, no absolute <code>/Users/</code> paths, no emails in the published page.</li>
+  <li>The animation must not lie: no parallel det stamps, no oracle answer without <code>record</code>, no agent-judged gates.</li>
+  <li>Not marketing: no CTAs/testimonials/benchmarks; only run-file numbers.</li>
+  <li>SPEC.md stays normative; the doc says so.</li>
+</ul>
+
+<h2>Validation commands</h2>
+<p><code>node &lt;scratchpad&gt;/check-explainer.mjs docs/blocks-explainer.html</code> (self-containment, size, headings, reduced-motion, secrets) · snippet-fidelity script · browser review · reviewer subagent gate.</p>
+
+<h2>Definition of done</h2>
+<ul>
+  <li>All 6 steps pass with evidence in the progress doc; harness all-pass; implementation review has no blockers and taste/originality ≥ 4; page published to zenbin with URL reported; repo file committed.</li>
+</ul>
+
+<h2>Open questions — resolved assumptions</h2>
+<ul>
+  <li>Stepped autoplay + manual controls (not scroll-scrubbed). Validation script stays in scratchpad. Single light scheme (drafting paper). zenbin CSP assumed to allow inline script, static fallback as insurance. Triage run appears only as gate evidence. 200 KB hard budget.</li>
+</ul>
+</main>
+</body>
+</html>
