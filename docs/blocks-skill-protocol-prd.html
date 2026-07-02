@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PRD — Blocks Skill Protocol (Draft 01)</title>
+<style>
+  :root { --ink:#1a1d23; --muted:#6b7280; --line:#e5e7eb; --bg:#fafaf8; --card:#fff; }
+  body { font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:var(--bg); margin:0; padding:2rem 1rem; }
+  main { max-width:940px; margin:0 auto; }
+  h1 { font-size:1.5rem; } h2 { font-size:1.15rem; margin-top:2rem; border-bottom:1px solid var(--line); padding-bottom:.3rem; }
+  code { font-family:ui-monospace,Menlo,monospace; font-size:.85em; background:#eef0ee; padding:.1em .35em; border-radius:4px; }
+  table { border-collapse:collapse; width:100%; margin:1rem 0; background:var(--card); font-size:.92em; }
+  th, td { border:1px solid var(--line); padding:.45rem .65rem; text-align:left; vertical-align:top; }
+  th { background:#f3f4f1; }
+  .meta { color:var(--muted); font-size:.85rem; }
+  .step { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:1rem 1.2rem; margin:1rem 0; }
+  .step h3 { margin-top:0; font-size:1rem; }
+  ul { padding-left:1.3rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Blocks Skill Protocol — full draft spec (PROTOCOL.md + zenbin)</h1>
+<p class="meta">PRD · slug <code>blocks-skill-protocol</code> · 2026-07-02 · deliverables: <code>PROTOCOL.md</code> (repo root, Draft 01) + published draft at zenbin · status: plan approved</p>
+
+<h2>Definition</h2>
+<p>An <strong>interoperability-grade specification</strong> of the Blocks skill protocol: a third party could implement conforming blocks, workflows, runners, oracles, or composers from this document alone, without reading this repo's code — and they would interoperate. It formalizes SPEC.md (which stays normative for this repo's internals) and resolves every prose/code discrepancy explicitly. RFC-2119 keywords; stable requirement IDs (<code>[BLK-n]</code>…); every MUST machine- or transcript-checkable. Draft 01 — no stability promise; strict unknown-key rejection <em>is</em> the extension policy.</p>
+
+<h2>Key editorial decisions (fixed)</h2>
+<ul>
+  <li><strong>D1 precedence:</strong> PROTOCOL.md normative for interop behavior; SPEC.md normative for repo internals; conflicts are bugs, tracked in Appendix D. SPEC.md gets a one-line scoping cross-reference.</li>
+  <li><strong>D2 pause interface:</strong> information items normative (node id, block pin, SKILL.md location, resolved input — persisted in the run document as the copy of record — and how to submit); exact printout text informative (Appendix A).</li>
+  <li><strong>D3:</strong> verb names informative; the four outcome classes normative, and mapped to exit codes 0/1/2/3 for any CLI-shaped runner.</li>
+  <li><strong>D4:</strong> strict JSON, camelCase run keys, kebab names/ids; unknown keys rejected everywhere — strictness is the compatibility mechanism. Run serialization (2-space, insertion order, trailing LF) RECOMMENDED.</li>
+  <li><strong>D6 determinism:</strong> structural equality of parsed <code>.nodes</code> for det nodes is MUST; byte identity RECOMMENDED.</li>
+  <li><strong>D7:</strong> examples are verbatim repo artifacts, marked informative, byte-checked by the harness so the spec cannot rot from its own examples. The protocol must not require JavaScript — a Python runner must be able to conform.</li>
+  <li><strong>Conformance classes (6):</strong> document classes Block / Workflow / Run; actor classes Runner / Oracle / Composer. No Validator class (validate-only tools satisfy the Runner's static-validation subset); no registry.</li>
+</ul>
+
+<h2>Discrepancy register (must all land in Appendix D)</h2>
+<table>
+  <tr><th>#</th><th>Finding (SPEC.md/skills vs code)</th><th>Protocol resolution</th></tr>
+  <tr><td>1</td><td>SPEC §3 says edges = bindings + <code>after</code>; validator also adds gate refs</td><td>Edges = wires ∪ gate refs ∪ <code>after</code></td></tr>
+  <tr><td>2</td><td>Skip propagation walks data deps only; a gate ref to a skipped node evaluates false instead</td><td>Specify both paths + their distinct run-document <code>reason</code> strings</td></tr>
+  <tr><td>3</td><td>"2 repair attempts" vs "3 attempts total" vs <code>MAX_ATTEMPTS=3</code></td><td>Phrase as the code: counter per record call; node fails when invalid ∧ attempts ≥ 3; det nodes record attempts: 1</td></tr>
+  <tr><td>4</td><td><code>workflowFile</code> field absent from SPEC §6 example</td><td>REQUIRED, repo-relative</td></tr>
+  <tr><td>5</td><td><code>capture</code> reads as required; code defaults to <code>json</code></td><td>OPTIONAL, default <code>json</code></td></tr>
+  <tr><td>6</td><td>Secret inputs digested in state; resume re-reads from flags — unwritten</td><td>Specify resume re-supply requirement</td></tr>
+  <tr><td>7</td><td>Hash preimages unspecified</td><td><code>workflowHash</code> = sha256(file bytes); <code>blockHash</code> = sha256(SKILL.md ‖ contract.json ‖ entry) in that order; format <code>sha256:&lt;64 hex&gt;</code></td></tr>
+  <tr><td>8</td><td>"Byte-identical" determinism depends on this CLI's serialization</td><td>Structural equality MUST; byte identity RECOMMENDED</td></tr>
+</table>
+
+<h2>Table of contents (as planned)</h2>
+<p>§0 Status (draft caveats, precedence) · §1 Intro &amp; design law · §2 Terminology/conventions/req-IDs · §3 Conformance (6 classes) · §4 Common syntax (ident, pin, hash, timestamps) · §5 Schema-lite · §6 Block · §7 Wires (EBNF, deep resolution, unknown-type digging) · §8 Gates (EBNF, eval semantics) · §9 Workflow document · §10 Permissions &amp; grants (cover semantics; enforced/audited/declared honesty table) · §11 Run document (+ determinism check) · §12 Runner protocol (state machine, outcome classes) · §13 Oracle contract · §14 Composer contract · §15 Versioning &amp; pinning · §16 Security considerations · §17 Non-goals · App A Reference implementation mapping (informative) · App B Worked example (verbatim run r-269b010f) · App C One-page conformance checklist · App D Clarifications vs SPEC.md v1.</p>
+
+<h2>Plan — 6 steps</h2>
+<div class="step"><h3>Step 1 — Consistency harness first</h3>
+<ul><li><strong>AC:</strong> <code>docs/blocks-protocol-check.mjs</code> checks PROTOCOL.md against the implementation: verbs from CLI HELP; exit codes; SKILL_KEYS; MAX_ATTEMPTS; schema-lite KEYS/TYPES; gate OPS; ID/PIN regex shapes; run-state + node-record fields; status vocabulary; embedded examples byte-match repo files; requirement-ID uniqueness + checklist coverage; internal anchors resolve; RFC-keyword lint in normative sections (outside code fences); no <code>/Users/</code> paths.</li>
+<li><strong>Evidence:</strong> named check per assertion; expected failures against a stub.</li></ul></div>
+<div class="step"><h3>Step 2 — §0–§11 (documents half)</h3>
+<ul><li><strong>AC:</strong> every MUST has an ID; grammars transcribed from code behavior with inline positive/negative test vectors; a reader could implement validateShape, coveredBy, and both grammars from the text alone; discrepancies 1,2,4,5,7,8 resolved; document-half harness checks pass.</li>
+<li><strong>Evidence:</strong> harness run + hand-evaluation of the changelog gate against run r-269b010f (0.85/pass → render runs).</li></ul></div>
+<div class="step"><h3>Step 3 — §12–§17 + appendices</h3>
+<ul><li><strong>AC:</strong> runner state machine incl. failure terminality, resume, secrets re-supply (discrepancies 3, 6); oracle contract implementable without reading this repo; Appendix C covers 100% of requirement IDs (script-verified); Appendix D lists all 8.</li>
+<li><strong>Evidence:</strong> full harness pass; requirement count reported.</li></ul></div>
+<div class="step"><h3>Step 4 — Adversarial reviewer gate</h3>
+<ul><li><strong>AC:</strong> implementer persona derives pseudo-code for record's repair loop, glob cover, and deep resolution from the spec alone and diffs against source — no behavioral divergence; editor persona finds zero untestable MUSTs, no weasel words, no duplicated normativity.</li>
+<li><strong>Evidence:</strong> reviewer report + fixes applied.</li></ul></div>
+<div class="step"><h3>Step 5 — Publish to zenbin as DRAFT</h3>
+<ul><li><strong>AC:</strong> probe markdown rendering first; fall back to generated minimal self-contained HTML wrapper (PROTOCOL.md stays single source). Published page shows "DRAFT 01 · 2026-07-02" prominently; fetch-back verification per explainer precedent.</li>
+<li><strong>Evidence:</strong> URL + fetch-back output.</li></ul></div>
+<div class="step"><h3>Step 6 — Final sweep + SPEC.md cross-link</h3>
+<ul><li><strong>AC:</strong> harness green; <code>node --test 'cli/tests/*.test.js'</code> green; diff touches only PROTOCOL.md, SPEC.md (one line), docs/.</li>
+<li><strong>Evidence:</strong> command outputs; git diff stat.</li></ul></div>
+
+<h2>Taste / originality criteria (≥ 4)</h2>
+<ul>
+  <li>Every MUST checkable by machine or transcript; untestable MUSTs are demoted or cut.</li>
+  <li>The <strong>enforced / audited / declared</strong> honesty table is the signature move.</li>
+  <li>Examples carry real hashes and the real 0.85 score — no placeholder mush.</li>
+  <li>Grammar test vectors inline (parse / don't-parse tables).</li>
+  <li>One-page printable conformance checklist proves the spec is finite.</li>
+  <li>Register discipline: dry numbered normative text; voice only in informative asides; no filler, no rule stated twice. Target ≤ ~1,400 lines.</li>
+</ul>
+
+<h2>Constraints</h2>
+<ul>
+  <li>No stability promise (Draft 01). No silent contradiction of SPEC.md — all divergence in Appendix D. No machine paths/secrets. Protocol must not require JavaScript. Don't spec graph/link/new/error wording (Appendix A). Oracle: only observable obligations are normative.</li>
+</ul>
+
+<h2>Validation commands</h2>
+<p><code>node docs/blocks-protocol-check.mjs PROTOCOL.md</code> · <code>node --test 'cli/tests/*.test.js'</code> · reviewer gates · zenbin fetch-back.</p>
+
+<h2>Definition of done</h2>
+<ul><li>All 6 steps pass with evidence; harness all-pass; both reviewer gates clear (taste/originality ≥ 4); PROTOCOL.md committed; SPEC.md cross-linked; published draft URL reported.</li></ul>
+
+<h2>Open questions — resolved assumptions</h2>
+<ul>
+  <li>No protocol version field in documents for Draft 01 (first Draft-02 candidate). <code>runId</code> opaque, <code>r-&lt;8 hex&gt;</code> RECOMMENDED. <code>check-output</code> OPTIONAL runner operation. <code>plan</code>-requires-inputs quirk → Appendix A. Repo tests labeled informative partial suite, not a conformance suite.</li>
+</ul>
+</main>
+</body>
+</html>
