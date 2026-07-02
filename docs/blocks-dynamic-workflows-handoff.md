@@ -4,3 +4,4 @@
 2026-07-02T15:10:06Z step-2-done CLI core (list/validate/graph), 20 tests green; evidence: node --test 'cli/tests/*.test.js'; cyclic fixture exits 1 naming a -> b -> a
 2026-07-02T15:16:58Z step-3-done det runtime: double-run IDENTICAL, injection literal, exit-3 fence, resume; evidence: cli/tests/run.test.js (29 tests green)
 2026-07-02T15:16:58Z step-4-done fuzzy machinery: check-output names /score above maximum 1; record repair loop 3 attempts
+2026-07-02T15:19:00Z step-5-done runner+composer skills, link/--check, new-block scaffold; evidence: all skill-referenced verbs execute; link symlink verified
