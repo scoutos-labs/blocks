@@ -1,0 +1,9 @@
+{
+  "name": "fixture-unresolved-wire",
+  "version": 1,
+  "grants": { "run": ["printf"] },
+  "nodes": [
+    { "id": "echo", "block": "echo-text@1", "in": { "text": "{{inputs.missing}}" } },
+    { "id": "next", "block": "echo-text@1", "in": { "text": "{{nodes.echo.output.nope}}" } }
+  ]
+}

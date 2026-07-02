@@ -1,0 +1,11 @@
+{
+  "name": "fixture-det-only",
+  "version": 1,
+  "inputs": { "text": { "type": "string", "default": "alpha beta gamma" } },
+  "grants": { "run": ["printf"], "read": [], "write": [] },
+  "nodes": [
+    { "id": "echo", "block": "echo-text@1", "in": { "text": "{{inputs.text}}" } },
+    { "id": "count", "block": "word-count@1", "in": { "text": "{{nodes.echo.output.text}}" } },
+    { "id": "shout", "block": "echo-text@1", "in": { "text": "{{nodes.echo.output.text}}!!" } }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "fixture-missing-grant",
+  "version": 1,
+  "grants": { "run": [] },
+  "nodes": [ { "id": "echo", "block": "echo-text@1", "in": { "text": "hi" } } ]
+}

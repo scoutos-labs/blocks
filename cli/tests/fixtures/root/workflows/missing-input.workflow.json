@@ -1,0 +1,6 @@
+{
+  "name": "fixture-missing-input",
+  "version": 1,
+  "grants": { "run": ["printf"] },
+  "nodes": [ { "id": "echo", "block": "echo-text@1", "in": {} } ]
+}

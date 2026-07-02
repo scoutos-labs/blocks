@@ -1,0 +1,12 @@
+{
+  "name": "blocks",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Skill-shaped no-code blocks that compose into deterministic DAG workflows for agents.",
+  "bin": { "blocks": "cli/bin/blocks" },
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node --test 'cli/tests/*.test.js'"
+  }
+}

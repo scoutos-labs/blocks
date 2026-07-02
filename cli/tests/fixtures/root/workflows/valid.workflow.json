@@ -1,0 +1,12 @@
+{
+  "name": "fixture-valid",
+  "version": 1,
+  "inputs": { "text": { "type": "string", "default": "hello brave new world" } },
+  "grants": { "run": ["printf"], "read": [], "write": [] },
+  "nodes": [
+    { "id": "echo", "block": "echo-text@1", "in": { "text": "{{inputs.text}}" } },
+    { "id": "count", "block": "word-count@1", "in": { "text": "{{nodes.echo.output.text}}" } },
+    { "id": "judge", "block": "fx-judge@1", "in": { "candidate": "{{nodes.echo.output.text}}" } },
+    { "id": "final", "block": "echo-text@1", "when": "nodes.judge.output.score >= 0.5 and nodes.judge.output.verdict == 'pass'", "in": { "text": "judged {{nodes.judge.output.score}}" } }
+  ]
+}

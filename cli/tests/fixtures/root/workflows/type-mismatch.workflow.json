@@ -1,0 +1,10 @@
+{
+  "name": "fixture-type-mismatch",
+  "version": 1,
+  "grants": { "run": ["printf"] },
+  "nodes": [
+    { "id": "echo", "block": "echo-text@1", "in": { "text": "hello" } },
+    { "id": "count", "block": "word-count@1", "in": { "text": "{{nodes.echo.output.text}}" } },
+    { "id": "bad", "block": "word-count@1", "in": { "text": "{{nodes.count.output.count}}" } }
+  ]
+}

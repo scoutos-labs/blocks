@@ -1,0 +1,9 @@
+{
+  "name": "word-count",
+  "version": 1,
+  "kind": "deterministic",
+  "inputs": { "text": { "type": "string" } },
+  "outputs": { "count": { "type": "number" } },
+  "exec": { "entry": "run.mjs" },
+  "permissions": { "run": [], "read": [], "write": [], "network": false }
+}

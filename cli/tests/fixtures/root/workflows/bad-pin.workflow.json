@@ -1,0 +1,6 @@
+{
+  "name": "fixture-bad-pin",
+  "version": 1,
+  "grants": { "run": ["printf"] },
+  "nodes": [ { "id": "echo", "block": "echo-text@9", "in": { "text": "hi" } } ]
+}

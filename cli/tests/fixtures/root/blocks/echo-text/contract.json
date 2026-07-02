@@ -1,0 +1,9 @@
+{
+  "name": "echo-text",
+  "version": 1,
+  "kind": "deterministic",
+  "inputs": { "text": { "type": "string" } },
+  "outputs": { "text": { "type": "string" } },
+  "exec": { "argv": ["printf", "%s", "{{inputs.text}}"], "capture": "text" },
+  "permissions": { "run": ["printf"], "read": [], "write": [], "network": false }
+}

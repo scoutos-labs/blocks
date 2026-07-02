@@ -1,0 +1,150 @@
+#!/usr/bin/env node
+// blocks — skill-shaped no-code blocks, deterministic DAG workflows.
+// Exit codes: 0 ok · 1 validation/contract failure · 2 usage error · 3 permission refusal
+
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import { loadLibrary } from '../src/loader.js';
+import { parseWorkflowFile, validateWorkflow, formatErrors } from '../src/validate.js';
+import { renderGraph } from '../src/graph.js';
+
+const root = process.env.BLOCKS_ROOT
+  ? resolve(process.env.BLOCKS_ROOT)
+  : resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+const [, , verb, ...args] = process.argv;
+
+const HELP = `blocks — compose skill-shaped blocks into deterministic DAG workflows
+
+usage: blocks <verb> [args]
+
+  list [--json]                       inventory the block library
+  validate <workflow.json>            static validation: pins, wires, gates, grants, acyclicity
+  graph <workflow.json>               ASCII render of the DAG
+  plan <workflow.json> [--state f]    topo order / next pending node
+  exec <workflow.json> [--state f] [--out f] [--input k=v]...
+                                      run deterministic nodes, persist run-state
+  check-output <block> <file|->       validate candidate fuzzy output against a block contract
+  record --state f --node id --output f
+                                      validate + append a fuzzy node's output to run-state
+  link <block> [--check]              symlink a block into .claude/skills/
+  new block <name> --kind <det|fuzzy> scaffold a block directory
+
+vocabulary: block · wire · gate · run · grant   (SPEC.md)`;
+
+function usage(msg) {
+  if (msg) console.error(`error: ${msg}\n`);
+  console.error(HELP);
+  process.exit(msg ? 2 : 0);
+}
+
+function flag(name) {
+  const i = args.indexOf(name);
+  if (i === -1) return undefined;
+  const v = args[i + 1];
+  args.splice(i, 2);
+  return v;
+}
+
+function boolFlag(name) {
+  const i = args.indexOf(name);
+  if (i === -1) return false;
+  args.splice(i, 1);
+  return true;
+}
+
+function library() {
+  const { library, errors } = loadLibrary(root);
+  if (errors.length) {
+    console.error(`block library has ${errors.length} problem(s):`);
+    console.error(formatErrors(errors));
+    process.exit(1);
+  }
+  return library;
+}
+
+function loadValidated(file) {
+  const lib = library();
+  const { workflow, errors: parseErr } = parseWorkflowFile(file);
+  if (parseErr.length) {
+    console.error(formatErrors(parseErr));
+    process.exit(1);
+  }
+  const { errors, order } = validateWorkflow(workflow, lib, file);
+  if (errors.length) {
+    console.error(`✗ ${file} — ${errors.length} problem(s):`);
+    console.error(formatErrors(errors));
+    process.exit(1);
+  }
+  return { workflow, lib, order, file };
+}
+
+switch (verb) {
+  case undefined:
+  case 'help':
+  case '--help':
+  case '-h':
+    usage();
+    break;
+
+  case 'list': {
+    const json = boolFlag('--json');
+    const lib = library();
+    if (json) {
+      const out = [...lib.values()].map(({ dir, ...b }) => ({
+        ...b,
+        dir: dir.startsWith(root) ? dir.slice(root.length + 1) : dir,
+      }));
+      console.log(JSON.stringify(out, null, 2));
+    } else {
+      if (lib.size === 0) console.log('no blocks in library (blocks/)');
+      for (const b of lib.values()) {
+        console.log(`${b.name}@${b.version}  [${b.kind === 'fuzzy' ? '~fuzzy' : 'det'}]  ${b.description}`);
+      }
+    }
+    break;
+  }
+
+  case 'validate': {
+    const file = args[0] ?? usage('validate needs a workflow file');
+    loadValidated(file);
+    console.log(`✓ ${file} is a valid workflow`);
+    break;
+  }
+
+  case 'graph': {
+    const file = args[0] ?? usage('graph needs a workflow file');
+    const { workflow, lib, order } = loadValidated(file);
+    console.log(renderGraph(workflow, lib, order));
+    break;
+  }
+
+  case 'plan':
+  case 'exec':
+  case 'record': {
+    const { runVerb } = await import('../src/run.js');
+    await runVerb(verb, args, { root, library, loadValidated, flag, boolFlag, usage });
+    break;
+  }
+
+  case 'check-output': {
+    const { checkOutputVerb } = await import('../src/run.js');
+    await checkOutputVerb(args, { root, usage });
+    break;
+  }
+
+  case 'link': {
+    const { linkVerb } = await import('../src/link.js');
+    await linkVerb(args, { root, boolFlag, usage });
+    break;
+  }
+
+  case 'new': {
+    const { newVerb } = await import('../src/scaffold.js');
+    await newVerb(args, { root, flag, usage });
+    break;
+  }
+
+  default:
+    usage(`unknown verb "${verb}"`);
+}

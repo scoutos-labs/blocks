@@ -1,0 +1,9 @@
+{
+  "name": "fixture-cyclic",
+  "version": 1,
+  "grants": { "run": ["printf"] },
+  "nodes": [
+    { "id": "a", "block": "echo-text@1", "in": { "text": "{{nodes.b.output.text}}" } },
+    { "id": "b", "block": "echo-text@1", "in": { "text": "{{nodes.a.output.text}}" } }
+  ]
+}

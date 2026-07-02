@@ -1,0 +1,9 @@
+{
+  "name": "fixture-dup-id",
+  "version": 1,
+  "grants": { "run": ["printf"] },
+  "nodes": [
+    { "id": "echo", "block": "echo-text@1", "in": { "text": "a" } },
+    { "id": "echo", "block": "echo-text@1", "in": { "text": "b" } }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "fx-judge",
+  "version": 1,
+  "kind": "fuzzy",
+  "inputs": { "candidate": { "type": "string" } },
+  "outputs": {
+    "score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "verdict": { "type": "string", "enum": ["pass", "revise"] }
+  }
+}

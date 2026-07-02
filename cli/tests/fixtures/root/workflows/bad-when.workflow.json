@@ -1,0 +1,9 @@
+{
+  "name": "fixture-bad-when",
+  "version": 1,
+  "grants": { "run": ["printf"] },
+  "nodes": [
+    { "id": "echo", "block": "echo-text@1", "in": { "text": "hi" } },
+    { "id": "gated", "block": "echo-text@1", "when": "nodes.echo.output.text >= 'abc'", "in": { "text": "x" } }
+  ]
+}
