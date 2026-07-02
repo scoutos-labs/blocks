@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PRD — Blocks: skill-shaped no-code blocks for deterministic agent workflows</title>
+<style>
+  :root { --ink:#1a1d23; --muted:#6b7280; --line:#e5e7eb; --accent:#0f6b4f; --warn:#b45309; --bg:#fafaf8; --card:#ffffff; }
+  * { box-sizing:border-box; }
+  body { font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:var(--bg); margin:0; padding:2rem 1rem; }
+  main { max-width:900px; margin:0 auto; }
+  h1 { font-size:1.6rem; line-height:1.25; } h2 { font-size:1.2rem; margin-top:2.2rem; border-bottom:1px solid var(--line); padding-bottom:.3rem; } h3 { font-size:1rem; margin-top:1.4rem; }
+  code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.85em; }
+  code { background:#eef0ee; padding:.1em .35em; border-radius:4px; }
+  pre { background:#14171c; color:#d8dee4; padding:1rem; border-radius:8px; overflow-x:auto; }
+  pre code { background:none; padding:0; color:inherit; }
+  table { border-collapse:collapse; width:100%; margin:1rem 0; background:var(--card); }
+  th, td { border:1px solid var(--line); padding:.5rem .7rem; text-align:left; vertical-align:top; }
+  th { background:#f3f4f1; }
+  .chip { display:inline-block; font-size:.75rem; font-weight:600; padding:.1rem .55rem; border-radius:999px; border:1px solid var(--line); }
+  .chip.det { color:var(--accent); border-color:var(--accent); } .chip.fuzzy { color:var(--warn); border-color:var(--warn); }
+  .meta { color:var(--muted); font-size:.85rem; }
+  .step { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:1rem 1.2rem; margin:1rem 0; }
+  .step h3 { margin-top:0; }
+  ul { padding-left:1.3rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Blocks — skill-shaped no-code blocks for deterministic agent workflows</h1>
+<p class="meta">PRD · task slug <code>blocks-dynamic-workflows</code> · repo <code>/Users/tron/desk-projects/blocks</code> · created 2026-07-02 · status: plan approved (blocker B1 resolved, suggestions S1–S4 applied)</p>
+
+<h2 id="summary">Summary</h2>
+<p><strong>Blocks</strong> is a library of composable, skill-shaped building blocks plus a tiny zero-dependency CLI that lets agents assemble repeatable tasks into a <strong>deterministic DAG (a workflow)</strong>, save it as a file, and run it over and over. Deterministic steps are executed by real code; non-deterministic steps (judging, classifying, extracting, summarizing) are clearly-marked <em>fuzzy</em> blocks whose <em>interface</em> is still deterministic — a prompt contract with a validated output schema. A workflow whose nodes are all fuzzy prompt-contract blocks <em>is</em> a <strong>prompt DAG</strong>; mixed workflows are the common case.</p>
+
+<h2 id="definition">Core definition (project-specific)</h2>
+<p><strong>The central design law: the CLI is the runtime for deterministic nodes; the agent is the driver and the oracle for fuzzy nodes.</strong> If determinism depended on an agent faithfully following prose, determinism would be a promise, not a property. Here every determinism claim is machine-checkable: run a workflow twice, diff the run-state hashes.</p>
+<table>
+  <tr><th>Term</th><th>Means here</th><th>Does <em>not</em> mean</th></tr>
+  <tr><td><strong>Block</strong></td><td>A directory that is <em>literally</em> a Claude Code skill: <code>SKILL.md</code> whose frontmatter uses <em>only documented skill keys</em> (<code>name</code>, <code>description</code>) so compatibility never rests on undocumented tolerance of custom keys, + <code>contract.json</code> sidecar (the single machine-readable source of truth) with <code>kind</code>, <code>version</code>, typed inputs/outputs and, for deterministic blocks, a permissions allowlist. Discovery mechanism (pinned in SPEC.md): blocks live in <code>blocks/</code>; <code>blocks link &lt;block&gt;</code> symlinks one into <code>.claude/skills/</code> to install it as a live skill. <span class="chip det">deterministic</span> blocks carry an executable script run via argv (never shell-interpolated). <span class="chip fuzzy">fuzzy</span> blocks carry a prompt contract: role, rubric, output JSON schema, worked examples.</td><td>A metaphorical "skill-like" format; a plugin with arbitrary code hooks.</td></tr>
+  <tr><td><strong>Workflow</strong></td><td>A saved JSON file (<code>workflows/*.workflow.json</code>): nodes pin blocks exactly (<code>git-log@1</code>), bindings <code>{{nodes.id.output.key}}</code> derive the edges, <code>when</code> gates use a tiny fixed comparison grammar, and a <code>grants</code> section co-signs block permissions (capability intersection). Acyclic, validated, diffable.</td><td>A programming language: no loops, no dynamic fan-out, no expression engine.</td></tr>
+  <tr><td><strong>Runner</strong></td><td>CLI verbs (<code>plan</code>, <code>exec</code>, <code>check-output</code>, <code>record</code>) + a runner skill giving the agent the protocol: topo order → CLI executes deterministic nodes → agent produces fuzzy outputs → <code>record</code> schema-validates before run-state accepts them (≤2 repair attempts) → resumable run-state JSON with sha256 block hashes for drift audit.</td><td>An agent improvising from prose; a daemon or scheduler.</td></tr>
+  <tr><td><strong>Composer</strong></td><td>A skill: inventory blocks (<code>blocks list --json</code>), draft the DAG, iterate <code>blocks validate</code> until clean, render <code>blocks graph</code> for sign-off, scaffold missing blocks. Emits only what the validator accepts.</td><td>A codegen tool that invents syntax.</td></tr>
+</table>
+
+<h2 id="goals">Goals</h2>
+<ul>
+  <li>Repeatable agent tasks become saved, re-runnable, auditable workflow files.</li>
+  <li>Determinism enforced by code (argv exec, permission allowlists, hash-recorded run-state), not by prose.</li>
+  <li>Fuzzy reasoning (LLM-as-judge, classify, extract) is first-class but fenced: schema-validated interfaces, gate-bounded blast radius.</li>
+  <li>Blocks are skill-format-compatible: frontmatter uses only documented Claude Code skill keys, and <code>blocks link</code> installs a block into <code>.claude/skills/</code> via symlink. Everything is plain inspectable files.</li>
+  <li>Zero runtime dependencies beyond Node ≥ 18; the CLI never calls a model.</li>
+</ul>
+
+<h2 id="nongoals">Non-goals (v1)</h2>
+<ul>
+  <li>No hosted server, web UI, daemon, triggers, or schedules (not CI — composes with CI).</li>
+  <li>No loops/recursion/arithmetic in the DAG (node-local bounded retry ≠ a DAG loop); no dynamic fan-out; no parallel scheduler (topo-sequential).</li>
+  <li>No block registry/marketplace; no version ranges (exact pins only).</li>
+  <li>No container sandboxing — allowlists + argv discipline, stated honestly.</li>
+  <li>The CLI never invokes a model; the agent is the only fuzzy oracle (headless <code>--model</code> adapter is v2).</li>
+</ul>
+
+<h2 id="constraints">Constraints (security &amp; privacy)</h2>
+<ul>
+  <li><strong>Command injection:</strong> inputs pass as argv arrays / env-file only; the CLI never builds shell strings. Fixture: binding value <code>&quot;; rm -rf .&quot;</code> must arrive as a literal argument.</li>
+  <li><strong>Path escape:</strong> paths resolved+normalized against workspace root; absolute paths and <code>..</code> rejected at validate <em>and</em> exec time.</li>
+  <li><strong>Prompt injection:</strong> fuzzy output can only take the declared shape; a poisoned judge at worst picks a wrong <em>declared</em> branch, never runs undeclared code. Documented residual risk.</li>
+  <li><strong>Secrets:</strong> no <code>{{env.*}}</code> bindings in v1; run-state never persists process env; <code>runs/</code> gitignored; grep check in validation suite.</li>
+  <li><strong>Tampered blocks:</strong> workflow <code>grants</code> ∩ block permissions; run-state block hashes make drift auditable.</li>
+  <li><strong>Determinism theater:</strong> <code>network: false</code> default; double-run hash diff in the validation suite.</li>
+</ul>
+
+<h2 id="plan">Plan — 7 steps with acceptance criteria</h2>
+
+<div class="step"><h3>Step 1 — SPEC.md + repo skeleton</h3>
+<ul><li><strong>AC:</strong> SPEC.md normatively covers: block format (frontmatter restricted to documented skill keys; <code>kind</code>/<code>version</code> in contract.json), the skill-discovery/install mechanism (<code>blocks link</code> symlink into <code>.claude/skills/</code>), contract.json schema, workflow JSON schema, binding grammar (EBNF), <code>when</code> grammar, run-state schema, permission model, repo layout. Dirs <code>blocks/ skills/ cli/ workflows/ examples/runs/</code> exist; <code>runs/</code> gitignored.</li>
+<li><strong>Evidence:</strong> <code>ls -R</code>; inspect SPEC.md section headers.</li></ul></div>
+
+<div class="step"><h3>Step 2 — CLI core: <code>validate</code>, <code>list</code>, <code>graph</code></h3>
+<ul><li><strong>AC:</strong> zero-dep Node, <code>node:test</code> tests. Validator checks: JSON well-formed; blocks resolvable; version pins match library; acyclicity; every binding resolves to a declared upstream output with compatible type; <code>when</code> parses; grants co-sign declarations. Every failure mode has a failing and a passing fixture. Errors carry file + JSON-pointer + fix hint.</li>
+<li><strong>Evidence:</strong> <code>node --test cli/tests/</code> green; <code>blocks validate fixtures/cyclic.workflow.json</code> exits non-zero naming the cycle.</li></ul></div>
+
+<div class="step"><h3>Step 3 — Deterministic runtime: <code>exec</code>, <code>plan</code>, run-state</h3>
+<ul><li><strong>AC:</strong> argv-only execution; undeclared command/path refused with non-zero exit; content hashing; resumability (<code>plan --state</code> returns next pending node). Det-only fixture run twice → byte-identical node <code>output</code> sections and block hashes; only <code>runId</code> and timestamp fields may differ, and they live outside the diffed sections.</li>
+<li><strong>Evidence:</strong> double-run + <code>diff</code> of run-state output sections; dedicated tests green.</li></ul></div>
+
+<div class="step"><h3>Step 4 — Fuzzy machinery: <code>check-output</code>, <code>record</code>, schema-lite validator</h3>
+<ul><li><strong>AC:</strong> valid output accepted; type/enum/range violations rejected naming the exact field; <code>record</code> refuses invalid output; repair loop (≤2 attempts) specified.</li>
+<li><strong>Evidence:</strong> tests green; <code>echo '{"score": 2}' | blocks check-output blocks/llm-judge -</code> exits non-zero citing the maximum.</li></ul></div>
+
+<div class="step"><h3>Step 5 — Runner + composer skills</h3>
+<ul><li><strong>AC:</strong> both SKILL.md protocols reference only CLI verbs that exist; frontmatter loads via the same loader as <code>blocks list</code>; <code>blocks link &lt;block&gt;</code> creates a working symlink in <code>.claude/skills/</code> and <code>blocks link --check</code> verifies frontmatter contains only documented skill keys.</li>
+<li><strong>Evidence:</strong> grep the skills for <code>blocks &lt;verb&gt;</code>; each verb's <code>--help</code> exits 0; read-through against SPEC.md.</li></ul></div>
+
+<div class="step"><h3>Step 6 — Block library + two end-to-end examples</h3>
+<ul><li><strong>AC:</strong> ~8–10 blocks (det: git-log, read-file, write-file, render-template…; fuzzy: classify, extract, llm-judge, summarize). Workflows <code>changelog-from-git</code> (with llm-judge gate) and <code>triage-bug-report</code> (severity gate → p1/backlog routing) validate clean and graph-render. Dogfood: changelog workflow run against this repo; completed run-state + artifact in <code>examples/runs/</code>; re-running det nodes reproduces identical hashes.</li>
+<li><strong>Evidence:</strong> <code>blocks validate workflows/*.workflow.json</code>; <code>blocks graph …</code>; inspect <code>examples/runs/</code>.</li></ul></div>
+
+<div class="step"><h3>Step 7 — README + taste pass + full validation</h3>
+<ul><li><strong>AC:</strong> README reaches the "aha" (block → wire → gate → run) in &lt;400 words, opening with a real workflow excerpt and its graph render; quickstart copy-paste runnable from clean checkout with only Node ≥ 18; taste rubric scores ≥ 4.</li>
+<li><strong>Evidence:</strong> execute quickstart verbatim; full validation suite green; judge review scores.</li></ul></div>
+
+<h2 id="validation">Whole-project validation commands</h2>
+<pre><code>node --test cli/tests/
+cli/bin/blocks validate workflows/changelog-from-git.workflow.json
+cli/bin/blocks validate workflows/triage-bug-report.workflow.json
+cli/bin/blocks graph workflows/changelog-from-git.workflow.json
+cli/bin/blocks list --json
+# determinism double-run diff:
+cli/bin/blocks exec cli/tests/fixtures/det-only.workflow.json --out /tmp/a.run.json
+cli/bin/blocks exec cli/tests/fixtures/det-only.workflow.json --out /tmp/b.run.json
+node -e 'const a=require("/tmp/a.run.json").nodes,b=require("/tmp/b.run.json").nodes;process.exit(JSON.stringify(a)===JSON.stringify(b)?0:1)'
+grep -rEi '(api[_-]?key|secret|token)\s*[:=]\s*\S' workflows/ examples/ blocks/  # hits require triage (docs mentioning a token param are OK; literal values are not)</code></pre>
+
+<h2 id="rubric">LLM-as-judge rubric</h2>
+<table>
+  <tr><th>Area</th><th>Judgment</th></tr>
+  <tr><td>Correctness</td><td>Does each step meet its acceptance criteria without regressions?</td></tr>
+  <tr><td>Acceptance coverage</td><td>Every criterion has captured evidence.</td></tr>
+  <tr><td>Security/privacy</td><td>Injection/path/secret mitigations implemented and tested, not just documented.</td></tr>
+  <tr><td>Simplicity</td><td>Zero-dep, cohesive, no over-engineering; the <code>when</code> grammar stays tiny.</td></tr>
+  <tr><td>Taste</td><td>README aha &lt; 400 words; <code>graph</code> output screenshot-worthy; every validator error actionable (file + pointer + expectation + fix hint); consistent five-word vocabulary (block / wire / gate / run / grant).</td></tr>
+  <tr><td>Originality</td><td>Would a reader recognize a Blocks file out of context? Generic workflow-engine boilerplate fails. Score 1–5; &lt; 4 triggers repair.</td></tr>
+  <tr><td>Maintainability</td><td>SPEC.md is the single source of truth; CLI modules small and named by verb.</td></tr>
+  <tr><td>Validation</td><td>All §Validation commands green, including determinism double-run.</td></tr>
+</table>
+
+<h2 id="acceptance">Final acceptance target</h2>
+<ul>
+  <li>All 7 steps pass their acceptance criteria with recorded evidence in the progress doc.</li>
+  <li>Full validation suite green, including determinism double-run diff and secrets grep.</li>
+  <li>Both example workflows completed end-to-end with curated run-states committed.</li>
+  <li>Implementation review: no blocking findings; taste/originality ≥ 4.</li>
+</ul>
+
+<h2 id="questions">Open questions &amp; assumptions (none blocking)</h2>
+<ul>
+  <li><del>Unknown frontmatter key <code>kind</code> in Claude Code skills: assumed tolerated.</del> Resolved at plan review (blocker B1): frontmatter restricted to documented keys; <code>kind</code>/<code>version</code> live in contract.json; discovery via <code>blocks link</code> symlink is pinned in SPEC.md.</li>
+  <li>JSON over YAML for workflows: decided (determinism product; Norway problem); reversible if editing friction proves real.</li>
+  <li>CLI never calls a model: decided; headless adapter is v2.</li>
+  <li><code>runs/</code> gitignored, curated <code>examples/runs/</code> committed: assumed.</li>
+  <li>Node ≥ 18 as the only requirement: v22.22.0 verified locally.</li>
+</ul>
+</main>
+</body>
+</html>
