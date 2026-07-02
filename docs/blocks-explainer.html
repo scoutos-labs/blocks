@@ -167,7 +167,7 @@
   .fig1 .plate { padding: 0; }
   .fig1 svg { display: block; width: 100%; height: auto; }
   .fig1-controls {
-    display: flex; align-items: center; gap: 10px;
+    display: none; align-items: center; gap: 10px;
     border-top: 1px solid var(--rule);
     padding: 8px 12px;
     font-family: var(--mono); font-size: 12px;
@@ -180,6 +180,7 @@
   .fig1-controls button:hover { background: var(--det-wash); }
   .fig1-controls button:focus-visible { outline: 2px solid var(--det); outline-offset: 2px; }
   .fig1-controls button[disabled] { opacity: .35; cursor: default; }
+  .js .fig1-controls { display: flex; } /* inert without script, so hidden */
   #fig1-caption { flex: 1; min-width: 0; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #fig1-step { color: var(--ink-soft); }
 
@@ -288,7 +289,7 @@
           <text class="n-block" x="216" y="248">summarize@1</text>
           <text class="n-kind-fuzzy" x="272" y="231">[~fuzzy]</text>
           <g class="stamp" id="s-draft">
-            <rect x="216" y="270" width="92" height="16" rx="2" fill="#C08A1E"/>
+            <rect x="216" y="270" width="92" height="16" rx="2" fill="#8A5E0B"/>
             <text class="hash" x="224" y="282">cc64f0d1</text>
           </g>
         </g>
@@ -300,7 +301,7 @@
           <text class="n-block" x="388" y="248">llm-judge@1</text>
           <text class="n-kind-fuzzy" x="446" y="231">[~fuzzy]</text>
           <g class="stamp" id="s-judge">
-            <rect x="388" y="270" width="150" height="16" rx="2" fill="#C08A1E"/>
+            <rect x="388" y="270" width="150" height="16" rx="2" fill="#8A5E0B"/>
             <text class="hash" x="396" y="282">0.85 · pass · 4f22ff36</text>
           </g>
         </g>
@@ -311,8 +312,9 @@
           <polygon points="576,62 604,90 576,118 548,90" fill="#FBFCFD" stroke="#16222E" stroke-width="1.5"/>
           <text class="n-label" x="576" y="94" text-anchor="middle" style="font-size:11px">when</text>
           <g class="stamp" id="s-gate">
-            <text class="gate-expr" x="576" y="140" text-anchor="middle">score 0.85 &gt;= 0.7 <tspan class="c-pass" fill="#1F6B4E">✓</tspan>  and  verdict 'pass' == 'pass' <tspan fill="#1F6B4E">✓</tspan></text>
-            <text class="gate-expr" x="576" y="156" text-anchor="middle" fill="#1F6B4E">→ run (evaluated by the CLI from recorded output)</text>
+            <text class="gate-expr" x="576" y="138" text-anchor="middle">score 0.85 &gt;= 0.7 <tspan fill="#1F6B4E">✓</tspan></text>
+            <text class="gate-expr" x="576" y="152" text-anchor="middle">and verdict 'pass' == 'pass' <tspan fill="#1F6B4E">✓</tspan></text>
+            <text class="gate-expr" x="576" y="167" text-anchor="middle" fill="#1F6B4E">→ run (evaluated by the CLI)</text>
           </g>
         </g>
 
@@ -337,7 +339,7 @@
             <text class="hash" x="806" y="136">33bab6e5</text>
           </g>
           <g class="stamp" id="s-artifact">
-            <text x="800" y="46" style="font-size:10px; letter-spacing:.06em" fill="#1F6B4E">CHANGELOG.md · 394 B</text>
+            <text x="900" y="46" text-anchor="end" style="font-size:10px; letter-spacing:.06em" fill="#1F6B4E">CHANGELOG.md · 394 B</text>
           </g>
         </g>
 
@@ -412,7 +414,7 @@
   "name": "git-log",
   "version": 1,
   "kind": <span class="c-det">"deterministic"</span>,
-  "inputs":  { "range": { "type": "string" } },
+  "inputs":  { "range": { "type": "string", <span class="c-dim">…</span> } },
   "outputs": { "text":  { "type": "string" } },
   "exec": {
     "argv": [<span class="c-det">"git", "log", "--no-color",
@@ -618,6 +620,7 @@ Exactly one JSON object:
   var timer = null;
   var visible = false;
   var played = false;
+  var manualHold = false;  // user took the controls; don't auto-resume
 
   function render() {
     STAMPS.forEach(function (id) {
@@ -635,7 +638,7 @@ Exactly one JSON object:
 
   function stop() { if (timer) { clearTimeout(timer); timer = null; } }
   function goto(n, manual) {
-    if (manual) stop();
+    if (manual) { stop(); manualHold = true; }
     state = Math.max(0, Math.min(FINAL, n));
     render();
   }
@@ -644,7 +647,7 @@ Exactly one JSON object:
     timer = setTimeout(function () { goto(state + 1); tick(); },
       STEPS[state].pause ? 2600 : 1900);
   }
-  function play() { stop(); goto(0); tick(); }
+  function play() { stop(); manualHold = false; goto(0); tick(); }
 
   prevBtn.addEventListener('click', function () { goto(state - 1, true); });
   nextBtn.addEventListener('click', function () { goto(state + 1, true); });
@@ -662,6 +665,7 @@ Exactly one JSON object:
         entries.forEach(function (e) {
           visible = e.isIntersecting;
           if (visible && !played) { played = true; play(); }
+          else if (visible && !timer && !manualHold && state < FINAL) tick(); // resume interrupted playback
           if (!visible) stop();       // no timers while offscreen
         });
       }, { threshold: 0.4 });

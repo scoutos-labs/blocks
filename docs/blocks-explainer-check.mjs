@@ -101,7 +101,11 @@ for (const [name, hex, min, bg] of [
   ['det text on plate', '#1B5CA4', 4.5, plate],
   ['fuzzy text on plate', '#8A5E0B', 4.5, plate],
   ['pass text on plate', '#1F6B4E', 4.5, plate],
+  ['paper text on det chip', paper, 4.5, '#1B5CA4'],
+  ['paper text on fuzzy chip', paper, 4.5, '#8A5E0B'],
 ]) check(`contrast ${name} >= ${min}:1`, ratio(hex, bg) >= min, ratio(hex, bg).toFixed(2));
+check('no light-on-#C08A1E chip text', !/rx="2" fill="#C08A1E"/.test(html),
+  'fuzzy chips must use the darker #8A5E0B fill');
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
