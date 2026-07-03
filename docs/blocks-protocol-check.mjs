@@ -150,5 +150,85 @@ check('no /Users/ paths', !doc.includes('/Users/'));
 check('draft banner present', /Draft 01/.test(doc) && /2026-07-02/.test(doc));
 check('no secrets patterns', !/sk-[a-zA-Z0-9]{8,}|AKIA[A-Z0-9]{8,}|ghp_[a-zA-Z0-9]{8,}/.test(doc));
 
+// ============================ Draft 02 checks ================================
+
+check('Draft 02 banner present', /Draft 02/.test(doc));
+
+// new requirement prefixes exist with reasonable coverage
+for (const [prefix, min] of [['OUT', 5], ['NST', 8], ['SIG', 7]]) {
+  const n = new Set([...doc.matchAll(new RegExp(`\\[${prefix}-(\\d+)\\]`, 'g'))].map((m) => m[1])).size;
+  check(`[${prefix}-*] requirements present (>= ${min})`, n >= min, `${n}`);
+}
+check('[VER-4] and [VER-5] present', doc.includes('[VER-4]') && doc.includes('[VER-5]'));
+check('[SEC-8] and [SEC-9] present', doc.includes('[SEC-8]') && doc.includes('[SEC-9]'));
+
+// new document fields named in the spec
+for (const f of ['outputs', 'from', 'childRun', 'approval', 'protocol', 'oracle', 'claims']) {
+  check(`Draft 02 field \`${f}\` specified`, doc.includes(`\`${f}\``));
+}
+
+// canonical-string domain prefix: spec and implementation must agree
+const APPROVAL_PREFIX = 'blocks-approval-v2';
+check('canonical-string prefix stated in spec', doc.includes(APPROVAL_PREFIX));
+check('canonical-string prefix present in implementation',
+  src('cli/src/run.js').includes(APPROVAL_PREFIX) || (() => { try { return src('cli/src/canon.js').includes(APPROVAL_PREFIX); } catch { return false; } })());
+
+// key registry hygiene: no private material committed
+import { readdirSync, existsSync } from 'node:fs';
+if (existsSync('keys')) {
+  const priv = readdirSync('keys').filter((f) => {
+    if (!f.endsWith('.json')) return false;
+    try { return JSON.parse(src(`keys/${f}`)).publicJwk?.d !== undefined || JSON.parse(src(`keys/${f}`)).privateJwk !== undefined; } catch { return true; }
+  });
+  check('keys/ registry holds no private material', priv.length === 0, priv.join(', '));
+} else {
+  check('keys/ registry exists', false, 'no keys/ directory');
+}
+
+// committed dogfood pair: release parent run + child run + live signature re-verification
+const releaseRuns = existsSync('examples/runs')
+  ? readdirSync('examples/runs').filter((f) => f.startsWith('release-') && f.endsWith('.run.json'))
+  : [];
+check('committed release parent run exists', releaseRuns.length >= 1, releaseRuns.join(', '));
+if (releaseRuns.length >= 1) {
+  const parent = JSON.parse(src(`examples/runs/${releaseRuns[0]}`));
+  const wfNode = Object.values(parent.nodes).find((n) => n.childRun);
+  check('parent run has a workflow node with childRun + workflowHash',
+    !!wfNode && typeof wfNode.workflowHash === 'string' && wfNode.status === 'done');
+  check('parent run declares protocol 2', parent.protocol === 2);
+  check('child workflowHash recomputes from child workflow file bytes',
+    !!wfNode && sha(readFileSync('workflows/changelog-from-git.workflow.json')) === wfNode.workflowHash);
+  check('parent run has resolved top-level output', parent.output !== undefined);
+
+  const childFile = wfNode && `${wfNode.childRun}`;
+  check('child run document committed', !!childFile && existsSync(childFile), childFile ?? '');
+
+  // live approval signature re-verification from run doc + registry alone
+  const approvalNode = Object.entries(parent.nodes).find(([, n]) => n.approval);
+  check('a signed approval node exists in the parent run', !!approvalNode);
+  if (approvalNode) {
+    const [nodeId, rec] = approvalNode;
+    try {
+      const { canon } = await import('../cli/src/canon.js');
+      const { createPublicKey, verify } = await import('node:crypto');
+      const key = JSON.parse(src(`keys/${rec.approval.keyId}.json`));
+      const blockPin = JSON.parse(src('workflows/release.workflow.json')).nodes.find((n) => n.id === nodeId).block;
+      const blockDir = `blocks/${blockPin.split('@')[0]}`;
+      const blockHash = sha(readFileSync(`${blockDir}/SKILL.md`), readFileSync(`${blockDir}/contract.json`));
+      const inputDigest = sha(Buffer.from(canon(rec.input), 'utf8'));
+      const answerDigest = sha(Buffer.from(canon(rec.output), 'utf8'));
+      const canonical = [APPROVAL_PREFIX, parent.workflowHash, blockHash, parent.runId, nodeId, inputDigest, answerDigest].join('\n');
+      const ok = verify(null, Buffer.from(canonical, 'utf8'),
+        createPublicKey({ key: key.publicJwk, format: 'jwk' }),
+        Buffer.from(rec.approval.signature, 'base64url'));
+      check('approval signature re-verifies from run document + registry via the spec formula', ok);
+      check('signing key declares the required claim',
+        JSON.parse(src(`${blockDir}/contract.json`)).oracle.claims.every((c) => key.claims.includes(c)));
+    } catch (e) {
+      check('approval signature re-verifies from run document + registry via the spec formula', false, e.message);
+    }
+  }
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
