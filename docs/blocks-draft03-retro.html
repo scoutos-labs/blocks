@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Draft 03 retro — good / bad / needs work + experiment plan</title>
+<style>
+  :root { --ink:#1a1d23; --muted:#6b7280; --line:#e5e7eb; --ok:#0f6b4e; --bad:#b91c1c; --warn:#b45309; --bg:#fafaf8; --card:#fff; }
+  body { font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:var(--bg); margin:0; padding:2rem 1rem; }
+  main { max-width:980px; margin:0 auto; }
+  h1 { font-size:1.5rem; } h2 { font-size:1.15rem; margin-top:2rem; border-bottom:1px solid var(--line); padding-bottom:.3rem; }
+  code { font-family:ui-monospace,Menlo,monospace; font-size:.85em; background:#eef0ee; padding:.1em .35em; border-radius:4px; }
+  table { border-collapse:collapse; width:100%; margin:1rem 0; background:var(--card); font-size:.92em; }
+  th, td { border:1px solid var(--line); padding:.45rem .65rem; text-align:left; vertical-align:top; }
+  th { background:#f3f4f1; }
+  .meta { color:var(--muted); font-size:.85rem; }
+  .s3 { color:var(--bad); font-weight:700; } .s2 { color:var(--warn); font-weight:600; } .s1 { color:var(--muted); }
+  ul { padding-left:1.3rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Draft 03 retro — three-lens evaluation</h1>
+<p class="meta">2026-07-03 · lenses: <strong>practitioner</strong> (built a new incident-note workflow cold from README/SPEC/skills only; ran both branches end-to-end incl. signed+attested approval), <strong>standards critic</strong> (read Draft 03 as a Python-runner implementer, a security reviewer, and a 200-workflow author), <strong>experiment scout</strong> (PoC-update question + backlog). Full reports in the session log; this doc is the synthesis of record.</p>
+
+<h2>Headline verdicts</h2>
+<ul>
+  <li><strong>The core is sound and the practitioner proved it live:</strong> a brand-new signed workflow in a new domain, composed and driven cold, both branches correct, zero PROTOCOL.md reads needed — but only because shipped examples acted as the real documentation (see BAD-7).</li>
+  <li><strong>Draft 03 is ready for a second-implementation attempt</strong> (critic). Failure risk is concentrated in the byte-exact surfaces: canonical JSON, number formatting, regex semantics, hash preimages.</li>
+  <li><strong>PoC question: no update needed to start experimenting.</strong> The two highest-information experiments need zero code changes. One ~1-day refactor (outcomes-as-values in run.js) gates the two build-something experiments.</li>
+</ul>
+
+<h2>GOOD — keep and never break (convergent across lenses)</h2>
+<table>
+  <tr><th>Strength</th><th>Evidence</th></tr>
+  <tr><td>Stable requirement IDs + per-class conformance checklist</td><td>"What makes a second implementation a checkable project rather than a vibe" (critic)</td></tr>
+  <tr><td>Enforced/audited/declared honesty tiers, applied consistently</td><td>"Specs almost never say what they don't enforce; this is what gets a security reviewer to keep reading" — incl. [CAP-4] flagging its own one editable field</td></tr>
+  <tr><td>Error design: pointer + expectation + fix hint, everywhere</td><td>Practitioner: "every error message" listed under delightful; the [VER-5] failure called "the best kind of failure"</td></tr>
+  <tr><td>Runs as diffable files + mechanized determinism check</td><td>[RUN-6]/[RUN-8]; the product's core claim is checkable</td></tr>
+  <tr><td>Closed documents as the extension policy</td><td>No vendor-key dialect drift ([VER-3], [BLK-12], [WFL-6], [SCH-8])</td></tr>
+  <tr><td>Structural injection defense + the pause banner UX</td><td>Whole-element argv, no shell, no env refs; banner prints the complete record command incl. --sign/--attest — "I never guessed flag syntax"</td></tr>
+</table>
+
+<h2>BAD — fix in the next iteration</h2>
+<table>
+  <tr><th>#</th><th>Finding</th><th>Sev</th><th>Lens</th><th>Smallest fix</th></tr>
+  <tr><td>B1</td><td>Canonical JSON specified in one sentence — sort order (code points vs UTF-16), string escaping, and "ECMAScript number formatting" all under-defined; two implementations will mint different digests and every signature breaks silently</td><td class="s3">3</td><td>critic + scout</td><td>Cite RFC 8785 normatively + ship golden canon→sha256 vectors (incl. non-BMP keys, 1e21, -0)</td></tr>
+  <tr><td>B2</td><td>Signing hands the private key to the runner process — "non-repudiable" currently means "the runner binary had my key"</td><td class="s3">3</td><td>critic</td><td>Record MUST accept a detached, approver-computed {keyId, signature} (everything in [SIG-3] is independently computable)</td></tr>
+  <tr><td>B3</td><td>Private keys live inside the fence-readable workspace — any entry block can read keys/*.private.json; one with a write grant can exfiltrate and forge offline</td><td class="s3">3</td><td>critic</td><td>MUST keep private key material outside the workspace root; narrow --allow-fs-read toward effective read grants</td></tr>
+  <tr><td>B4</td><td><code>classify</code> silent-failure path: label output unconstrained by labels input — an out-of-set label validates, all sibling gates go false, run "completes" with everything skipped and nothing written</td><td class="s3">3</td><td>practitioner (only silent failure found)</td><td>Record-time cross-check (or spec'd <code>enumFrom: inputs.labels</code>) + validate-time lint when sibling gates can't cover the space</td></tr>
+  <tr><td>B5</td><td>Read-grants theater, demonstrated by the flagship example: release grants <code>"read": []</code> while its git node reads the whole repo</td><td class="s2">2</td><td>critic</td><td>State argv-block fs globs are audit-tier always; make examples grant what's actually read</td></tr>
+  <tr><td>B6</td><td>Gate join trap: equal-precedence left-assoc means <code>a or b and c</code> ≠ every language the author knows, and parens are banned</td><td class="s2">2</td><td>critic</td><td>Validation error on mixing and/or in one gate (grammar stays closed)</td></tr>
+  <tr><td>B7</td><td>Draft-03 features learnable only from shipped examples — SPEC.md never shows <code>protocol</code>/<code>outputs</code>/<code>oracle</code>/workflow-nodes; scaffolder doesn't know signing exists (no --claims/--capability on <code>new block</code>)</td><td class="s2">2</td><td>practitioner F1–F3</td><td>One Draft-03 page in SPEC.md; teach the scaffolder the oracle stanza</td></tr>
+  <tr><td>B8</td><td>Record-time requirement errors are sequenced, not combined (fix --attest, re-run, hit --sign wall) — pause banner already knows both</td><td class="s1">1</td><td>practitioner F4</td><td>One error listing all unmet ceremony requirements</td></tr>
+  <tr><td>B9</td><td>Assorted: [VER-2] "validation error surface" unimplementable as stated (pins carry no hash); exit 0 conflates complete/paused; unsalted secret digests dictionary-attackable; [ORC-2] MUST on unobservable behavior; "74 tests" stale (76)</td><td class="s2">1–2</td><td>critic</td><td>Reword VER-2 to audit-surface (or optional blockHash pins); machine status output; salted digests; ORC-2 → SHOULD; recount</td></tr>
+</table>
+
+<h2>NEEDS WORK — ranked by adoption risk</h2>
+<ol>
+  <li><strong>Golden-vector conformance pack</strong> (canon/sig/blockHash/gate/workflow fixtures) — the single change that most raises second-implementation odds; converts the spec's worst defect into a testable target.</li>
+  <li><strong>Concurrency/single-writer</strong>: saveState is a blind writeFileSync; two writers = lost updates and attempt-budget bypass; spec silent. Demonstrate, then write the honest rule + atomic-rename SHOULD.</li>
+  <li><strong>Oracle discovery</strong>: no way to enumerate paused runs; pause is a one-time printout. Bless the derivation + a <code>blocks runs</code> inventory verb + optional JSON pause manifest (also fixes oracle portability across runner shapes).</li>
+  <li><strong>Composition ergonomics</strong> (practitioner F7): library workflows aren't nestable by default — no <code>outputs</code>, baked-in paths/labels; nesting only pays for children designed for it. Outputs-by-default guidance + parameterizable children.</li>
+  <li><strong>DX trio</strong>: <code>blocks run</code> (loop exec↔record; 3-fuzzy-node run currently ≈ 9 commands), <code>blocks verify &lt;run&gt;</code> (README promises "re-verifiable forever", ships no verb), dry-run mode.</li>
+  <li><strong>Vendoring story</strong>: no namespace, no content hash in pins — sharing blocks across teams is "copy and hope". Documented vendor-and-verify convention (expected blockHash) also fixes B9/VER-2.</li>
+  <li><strong>Observability</strong>: optional top-level finishedAt + sanctioned trace file exempt from [RUN-8]; det failure currently indistinguishable from not-reached in artifacts.</li>
+  <li><strong>Deferred-vs-never</strong>: §17 mixes them; adopters can't price the roadmap. Informative deferred section (fan-out disqualifies a workflow class today; N-of-M matters to the §12.4 audience; [RUN-4] hard-codes one approval per node).</li>
+  <li><strong>Spec trip hazards</strong>: undefined <code>ws</code>/<code>text</code> nonterminals (EBNF requires whitespace the tokenizer doesn't); block library location never stated in PROTOCOL.md; number→string form in [WIR-2] undefined; runId uniqueness scope; input-less [SIG-3] digest preimage; null equality in [GAT-5]; [WFL-5] sequential-MUST → observable-equivalence.</li>
+</ol>
+
+<h2>Do we need to update the PoC to experiment? — No, then yes (one refactor)</h2>
+<table>
+  <tr><th>Experiment</th><th>Question it answers</th><th>PoC change</th></tr>
+  <tr><td><strong>E1×E2 (run next):</strong> second-domain workflow, composed AND driven cold by a different oracle</td><td>Block-model generality + the any-oracle claim — the two foundations. Generates the evidence that decides retry/fan-out/env/per-node-grants. (The practitioner run is a partial E1×E2 and both claims held; F1–F8 are the defect list.)</td><td><strong>none</strong></td></tr>
+  <tr><td><strong>E3:</strong> concurrency collision (two writers, one run file)</td><td>Forces the single-writer/locking text either way; near-certain finding</td><td><strong>none</strong> to observe</td></tr>
+  <tr><td><strong>E6:</strong> cross-language conformance kit (~300-line Python canon/gate/schema validator + vectors)</td><td>The §0 existential claim; whether [SIG-3] digests reproduce outside JS</td><td>medium — gate behind refactor</td></tr>
+  <tr><td><strong>E4:</strong> headless oracle adapter (standalone script; --model in the CLI would violate [RNR-15])</td><td>Do fuzzy contracts stand alone without ambient agent context?</td><td>small — gate behind refactor</td></tr>
+  <tr><td><strong>E5/E7:</strong> many-node stress (16MiB ceiling is undocumented) / Windows CI</td><td>Scale curves; path semantics can't be spec'd for a platform never run</td><td>none to observe</td></tr>
+  <tr><td><strong>E8:</strong> N-of-M prototype</td><td>Record state-machine extension — experiment-first per house discipline, but only once a workflow demands it</td><td>medium — wait for demand</td></tr>
+</table>
+<p><strong>The one PoC investment worth making first: run.js outcomes-as-values (~1 day).</strong> fail()/refuse() call process.exit deep in library code, so the runner can't be embedded — which E3's harness, E4's adapter, E6's driver, and any future HTTP-runner claim all need. Fold in: recordVerb's duplicate block resolution, the dead read-branch in validate.js grants pass, documenting the 16MiB ceiling.</p>
+
+<h2>Spec-first vs experiment-first (Draft 04 discipline)</h2>
+<ul>
+  <li><strong>Spec-first (design already forced):</strong> retry ([RNR-17] already gives idempotent retry — say it louder), env (keep the ban; document the secret-input pattern), per-node grant narrowing (pure algebra reuse), signed attestations (stay closed).</li>
+  <li><strong>Experiment-first (paper design would be malpractice):</strong> N-of-M (record state machine — where both prior drafts' real bugs lived), fan-out, concurrency text, canonical-JSON hardening, headless oracle, Windows paths.</li>
+</ul>
+
+<h2>Recommended sequence</h2>
+<ol>
+  <li><strong>Quick-wins batch (hours, no design risk):</strong> B4 classify enforcement · B6 mixed-and/or error · B8 combined ceremony errors · B7 scaffolder + SPEC.md page · truncation ellipsis · stale counts · dead validator branch.</li>
+  <li><strong>E3 concurrency probe</strong> (hours) → single-writer spec text.</li>
+  <li><strong>run.js refactor</strong> (~1 day) → unlocks E4 + E6.</li>
+  <li><strong>Golden-vector pack + RFC 8785 citation + E6 Python mini-validator</strong> — then the second-implementation milestone is real.</li>
+  <li><strong>Draft 04 scope</strong> from evidence: security fixes (B1–B3, salted digests), pause manifest + discovery, composition ergonomics; N-of-M iff demanded.</li>
+</ol>
+</main>
+</body>
+</html>

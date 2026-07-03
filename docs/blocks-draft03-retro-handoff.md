@@ -1,0 +1,2 @@
+2026-07-03T13:51:14Z begin blocks-draft03-retro — 3-lens evaluation: practitioner dogfood, standards critique, experiment scouting; deliverable = assessment + experiment backlog
+2026-07-03T13:59:38Z complete blocks-draft03-retro — 3 lenses synthesized into docs/blocks-draft03-retro.html; verdict: core sound, 4 sev-3 fixes (canon JSON, detached sigs, key location, classify silent-skip); PoC: experiment now, one refactor gates the build experiments
