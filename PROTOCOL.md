@@ -1,20 +1,24 @@
 # The Blocks Skill Protocol
 
-**Draft 02 · 2026-07-02 · status: DRAFT — expect breaking changes · supersedes Draft 01**
+**Draft 03 · 2026-07-03 · status: DRAFT — expect breaking changes · supersedes Draft 02**
 
 ---
 
 ## 0. Status of this document (informative)
 
-This is Draft 02 of the Blocks Skill Protocol. It is an interoperability
+This is Draft 03 of the Blocks Skill Protocol. It is an interoperability
 specification: a party who has never read the reference implementation should
 be able to build conforming blocks, workflows, runners, oracles, or composers
 from this document alone, and have them interoperate with everyone else's.
 
-Draft 02 supersedes Draft 01 in place and is a strict superset: every
-conforming Draft-01 document remains conforming, and all changes are
-additive — workflow composition (§9.1–§9.2), signed approvals (§12.4), and
-the `protocol` version field ([VER-4], [VER-5]).
+Draft 02 superseded Draft 01 with workflow composition (§9.1–§9.2),
+signed approvals (§12.4), and the `protocol` version field ([VER-4],
+[VER-5]); Draft 03 supersedes Draft 02 with oracle capability attestation
+(§12.5), two gate constructs (§8: `contains` and the `#` length modifier),
+and a corrected, draft-scoped `blockHash` preimage ([RUN-2]). Documents
+remain conforming across drafts — hashes are interpreted under the draft a
+run declares, never retro-invalidated.
+[§19](#19-changes-from-draft-02-informative) lists every Draft-03 change.
 [§18](#18-changes-from-draft-01-informative) lists every change. One
 symmetry carries all of it: grants co-sign a block's capabilities (Draft
 01); a parent workflow co-signs an embedded child's grants (§9.2); an
@@ -245,8 +249,8 @@ member of its own `run` list.
 
 [BLK-12] Contracts are closed documents: `contract.json`, its `exec` object
 (keys `argv`, `capture`, `entry` only), its `permissions` object (keys
-`run`, `read`, `write`, `network` only), and its `oracle` object (key
-`claims` only, [SIG-1]) reject unknown keys, and `capture` is valid only in
+`run`, `read`, `write`, `network` only), and its `oracle` object (keys
+`claims` and `capability` only, [SIG-1]/[CAP-1]) reject unknown keys, and `capture` is valid only in
 the argv variant. Validators MUST treat violations as errors — the
 strictness is the extension policy [VER-3].
 
@@ -329,8 +333,9 @@ is not an expression language ([GAT-7]):
 ```ebnf
 expr      = clause, { ws, join, ws, clause } ;
 join      = "and" | "or" ;
-clause    = ref, ws, op, ws, literal ;
-op        = "==" | "!=" | ">=" | "<=" | ">" | "<" ;
+clause    = operand, ws, op, ws, literal ;
+operand   = [ "#" ], ref ;                (* no whitespace after "#" *)
+op        = "==" | "!=" | ">=" | "<=" | ">" | "<" | "contains" ;
 literal   = number | "true" | "false" | sq-string ;
 number    = ["-"], digits, [".", digits] ;
 sq-string = "'", { any character except "'" }, "'" ;
@@ -341,10 +346,16 @@ mechanism.
 
 Test vectors — these parse:
 `nodes.judge.output.score >= 0.7 and nodes.judge.output.verdict == 'pass'` ·
-`inputs.dry-run == true` · `nodes.severity.output.label != 'p1'`.
+`inputs.dry-run == true` · `nodes.severity.output.label != 'p1'` ·
+`nodes.severity.output.labels contains 'p1'` ·
+`#nodes.draft.output.summary > 40` · `#inputs.tags >= 1`.
 These do not: `(nodes.a.output.x == 1)` · `nodes.a.output.x + 1 == 2` ·
 `nodes.a.output.x >= 'high'` (ordering needs a number literal) ·
-`nodes.a.output.x == nodes.b.output.y` (literals only on the right).
+`nodes.a.output.x == nodes.b.output.y` (literals only on the right) ·
+`# nodes.a.output.x > 1` (the modifier hugs its ref) ·
+`#nodes.a.output.x contains 'y'` (a length is a number). And
+`inputs.contains == 'x'` parses with `inputs.contains` as a ref — dotted
+tokens are never split, so the word-operator cannot collide.
 
 [GAT-1] The four ordering operators (`>=`, `<=`, `>`, `<`) MUST be rejected
 at parse time unless the literal is a number.
@@ -371,7 +382,30 @@ validation error.
 
 [GAT-7] The gate grammar is closed: conforming implementations MUST NOT
 extend it — no parentheses, arithmetic, functions, ref-to-ref comparison,
-or nesting, in any draft that calls itself this protocol.
+or nesting, in any draft that calls itself this protocol. (Draft 03 adds
+one word-operator and one ref modifier below; the ban list is untouched.)
+
+[GAT-8] `contains`: when the left value is a string, the clause is true iff
+the literal is a string and a substring of it (the empty string is a
+substring of everything); when the left value is an array, true iff some
+element is strictly equal to the literal under [GAT-5]'s scalar equality
+(object or array elements never match); for every other left value the
+clause is false. A missing or skipped ref stays false per [GAT-4]. There is
+no negated form; invert by workflow design.
+
+[GAT-9] `#ref` evaluates to the length of the referenced value: for a
+string, the number of **Unicode code points** (not UTF-16 units, not
+bytes — a two-emoji string has length 2); for an array, the element count;
+for every other value the clause is false. The `#` MUST immediately
+precede the ref with no whitespace, and applies to both ref forms
+(`#inputs.key` is legal). A missing or skipped ref stays false per
+[GAT-4].
+
+[GAT-10] Statically ([GAT-6] extended): the left operand of `contains`,
+and the ref under `#`, MUST be statically `string`, `array`, or unknown;
+a `#` operand is statically `number` (it composes with ordering operators,
+and `#ref contains …` is a parse-time error); substring `contains` (left
+statically `string`) with a non-string literal is a validation error.
 
 ## 9. The workflow document (normative)
 
@@ -456,10 +490,11 @@ the run's inputs: re-invoking a completed run MUST reproduce it exactly.
 only by `outputs` still runs (or skips) on its own dependencies and gates.
 
 [OUT-7] The sanctioned pattern for consuming an *optional* output
-downstream is a gate on the output itself (`nodes.child.output.message !=
-''` — a missing ref makes the clause false [GAT-4] and the consumer
-skips); a data wire to a missing optional output is an execution error
-[WIR-8].
+downstream is a gate on the output's length: `#nodes.child.output.message
+> 0` — a missing ref makes the clause false [GAT-4] and the consumer
+skips, and the same gate works for strings and arrays alike (`!= ''`
+remains valid; Draft 03 moves the recommendation). A data wire to a
+missing optional output is an execution error [WIR-8].
 
 ### 9.2 Workflow composition (normative)
 
@@ -607,8 +642,14 @@ persisted), and `nodes` (a map from node id to node record). It MAY carry
 
 [RUN-2] `workflowHash` MUST be the hash [SYN-5] of the exact bytes of the
 workflow file. A block's hash (`blockHash` below) MUST be the hash of the
-concatenation, in order, of the exact bytes of: `SKILL.md`, then
-`contract.json`, then — for entry blocks only — the entry script.
+concatenation, in order, of the exact bytes of: for a **fuzzy** block,
+`SKILL.md` then `contract.json` (the prose is the contract, [BLK-4]); for
+a **deterministic** block, `contract.json` then — for entry blocks — the
+entry script (the prose is descriptive, so a documentation edit is not
+executable drift). **Hashes are draft-scoped:** a run document's hashes
+are interpreted under the preimage rules of the draft the run declares
+([VER-4]); recomputing a prior draft's run under a later draft's preimage
+is a category error, not drift.
 
 [RUN-3] A node record's `status` MUST be one of `pending`, `done`,
 `skipped`, `failed`. Only a fuzzy node's exhausted attempt budget [RNR-11]
@@ -708,9 +749,10 @@ the record per [RUN-5], then convey to the oracle at least: the node id;
 the block pin; where to read the block's `SKILL.md`; the resolved input
 (or that it is in the run document, which is authoritative); the exact
 mechanism for submitting an answer; when the block demands claims
-([SIG-1]), that a signed submission is required; and, when the pause is
-inside a descendant run [NST-9], which run document is the submission
-target. The presentation (text, API response, message) is
+([SIG-1]), that a signed submission is required; when the block declares a
+capability ([CAP-1]), the required capability string and that record
+demands a matching attestation; and, when the pause is inside a descendant
+run [NST-9], which run document is the submission target. The presentation (text, API response, message) is
 implementation-defined; the information items are not.
 
 [RNR-9] **Record.** An answer enters the run only through the runner's
@@ -788,9 +830,10 @@ claims, making approvals non-repudiable and the approver accountable — and
 the mechanism is signer-agnostic: a key does not care whether a human or an
 agent holds it.
 
-[SIG-1] A fuzzy contract MAY declare `"oracle": { "claims": [...] }` — a
-closed object whose `claims` is a non-empty array of claim names matching
-`[a-z][a-z0-9-]*`. `oracle` on a deterministic block is invalid.
+[SIG-1] A fuzzy contract MAY declare an `oracle` object — closed, with
+keys `claims` (a non-empty array of claim names matching
+`[a-z][a-z0-9-]*`) and/or `capability` (§12.5); at least one MUST be
+present. `oracle` on a deterministic block is invalid.
 
 [SIG-2] The **key registry** is the workspace directory `keys/`. A
 registered key is a closed document `keys/<keyId>.json` containing `keyId`
@@ -856,6 +899,52 @@ document plus registry is **audited**; the semantic truth of a claim —
 that `k-tom` really is an empowered release approver — is **declared**,
 a reviewed registry statement, exactly parallel to `network` ([SEC-8]).
 
+### 12.5 Oracle capability attestation (normative)
+
+Claims (§12.4) say *who may answer*; capability says *what grade of
+judgment the rubric assumes*. A fuzzy block calibrated against a strong
+reasoner degrades silently under a weak one — capability gives composers a
+matching surface, runners a routing hint, and auditors a recorded claim to
+hold someone to.
+
+[CAP-1] A fuzzy contract's `oracle` object MAY declare `capability`: a
+single name matching `[a-z][a-z0-9-]*` (e.g. `reasoning-v1`) naming the
+oracle grade the block's prompt contract is calibrated against.
+
+[CAP-2] When the block declares a capability, every record submission MUST
+carry an attestation exactly equal to the declared string (`--attest` in
+the reference implementation), checked after the pause-time `blockHash`
+check and **before** answer parsing, signature verification, and attempt
+accounting. A missing or mismatched attestation concludes in the
+**usage-error** class with no state change and no attempt increment. The
+class is deliberately not permission-refusal, and deliberately asymmetric
+with a missing signature ([SIG-5], permission class): permission refusal
+in this protocol marks an authority boundary a mechanism enforces — keys,
+allowlists, fences — and attestation has no authority content; anyone can
+type the string, and classing its absence as a permission failure would
+let the outcome vocabulary imply verification where none exists.
+
+[CAP-3] An accepted attested answer's node record carries `capability`
+(the attested string) beside any `approval`. Voluntary attestation on a
+block that declares no capability is permitted (the string still follows
+[CAP-1]'s grammar) and recorded the same way; there is nothing to verify
+it against, and the record says only that it was stated.
+
+[CAP-4] Tiers ([PRM-7]): presence-and-equality of the attestation is
+**enforced**; re-reading it from the run document is **audited**; its
+truth — that the answering oracle actually is the named grade — is
+**declared**, exactly parallel to `network` and registry claims [SEC-8].
+Implementations MUST NOT present attestation as model-identity
+verification.
+
+Capability does not bind into the approval signature [SIG-3], and this is
+closed rather than deferred: for a declaring block the demand is already
+transitively signed (signature → `blockHash` → `contract.json` →
+`oracle.capability`, with [RNR-9]'s pause-time check closing the drift
+window), so binding adds nothing there; and folding a *voluntary*
+attestation into an enforced-tier Ed25519 signature would upgrade the
+apparent tier of a self-statement — the opposite of [PRM-7] honesty.
+
 ## 13. The oracle contract (normative)
 
 An oracle is whatever answers fuzzy nodes: an agent in any harness, a
@@ -876,7 +965,10 @@ operation, and on rejection MUST repair its answer — not the schema, the
 contract, the workflow, or the run document — within the attempt budget
 [RNR-11]. When the node demands claims [SIG-1], the oracle signs its
 submissions with a qualifying registered key, re-signing every repair
-[SIG-5].
+[SIG-5]. When the node declares a capability [CAP-1], the oracle attests
+with every submission [CAP-2], and SHOULD attest only to a capability it
+genuinely holds — the attestation's truth is its own statement, nothing
+else's ([CAP-4]).
 
 [ORC-4] An oracle MUST NOT: modify run documents, contracts, or workflows
 to make an answer admissible; execute a deterministic node's command
@@ -924,13 +1016,23 @@ new capability means a new draft, not a vendor key.
 [VER-4] Workflow and run documents MAY carry `protocol` (a positive
 integer; absent means 1). An implementation MUST reject a document
 declaring a protocol draft it does not implement, with a message naming
-both numbers. Runners stamp new run documents with the workflow's
-effective protocol, omitting the field for protocol-1 workflows so their
-runs remain readable by Draft-01 tooling.
+both numbers. A runner stamps every run document it creates with the
+greater of the workflow's declared protocol and the draft governing the
+runner's own run-document semantics — a Draft-03 runner stamps
+`protocol: 3` on every new run, because the run embodies Draft-03
+preimages [RUN-2] regardless of the workflow's own constructs. (This
+deliberately repeals Draft 02's omit-for-protocol-1 nicety: a Draft-02
+reader would misread Draft-03 deterministic hashes as drift; the stamp
+plus this rule's rejection is the misread-prevention mechanism.) A runner
+MUST refuse to resume or record into a run declaring an earlier draft
+than its own run semantics — restamping would mint a mixed-preimage
+document nobody can audit honestly. In-flight runs do not survive a draft
+upgrade, and drafts promise nothing else (§0).
 
 [VER-5] A workflow document that uses any construct introduced after
-Draft 1 — `outputs` (§9.1) or a `workflow` node (§9.2) — MUST declare
-`protocol` ≥ the draft that introduced it. Validators MUST reject Draft-2
+Draft 1 — `outputs` (§9.1) or a `workflow` node (§9.2, both Draft 2), or
+a gate using `contains` or `#` (§8, Draft 3) — MUST declare `protocol` ≥
+the draft that introduced it. Validators MUST reject Draft-2
 constructs under an implicit Draft-1 claim; the check is static. (Block
 contracts carry no protocol field; a Draft-01 runner already rejects an
 `oracle` key via [BLK-5]'s closed-key rule, which is the intended
@@ -963,7 +1065,9 @@ choosing the wrong declared branch — is real and is why grants exist.
 into a fuzzy node persists its resolved value in that node's `input` record
 [RUN-5], and wiring one into a workflow output (§9.1) persists it in the
 run's `output` object; workflow authors SHOULD NOT do either, and
-validators MAY warn.
+validators MAY warn. Gating on a secret's length (`#inputs.token > 0`,
+[GAT-9]) leaks that length into skip reasons and gate outcomes — treat
+the lengths of secrets as secrets.
 
 [SEC-6] Symlinked workspace roots: implementations that fence filesystem
 access SHOULD resolve real paths before spawning fenced children, or the
@@ -1027,6 +1131,34 @@ All changes are additive; no Draft-01 semantics changed.
   administrator-can-always-edit honesty note; [SEC-9] replay binding and
   revocation-by-deletion.
 
+## 19. Changes from Draft 02 (informative)
+
+All Draft-03 changes; §18 (Draft 02's changelog) is frozen history.
+
+- **Oracle capability attestation** (§12.5, [CAP-1..4]): `oracle.capability`
+  declares the judgment grade a rubric assumes; record demands an exact
+  self-attestation before parse/auth/attempts (usage class on refusal, no
+  burn); recorded beside `approval`; truth is declared-tier; explicitly not
+  bound into [SIG-3], with the rationale written down.
+- **Gate extension** (§8, [GAT-8..10]): the `contains` operator (substring /
+  strict scalar membership) and the `#` length modifier (Unicode code
+  points for strings, element count for arrays) — operators-not-functions;
+  [GAT-7]'s ban list untouched; [OUT-7]'s recommended pattern is now
+  `#… > 0`.
+- **blockHash preimage split** ([RUN-2]): deterministic blocks hash
+  `contract.json ‖ entry` (prose is descriptive); fuzzy blocks unchanged
+  (prose is the contract). Hashes are draft-scoped — prior-draft runs are
+  reinterpreted under their own draft, never retro-invalidated. The
+  committed Draft-02 approval signature survives the split (fuzzy preimage
+  unchanged).
+- **[VER-4] amended**: runners stamp every new run with their own
+  run-semantics draft (Draft-03 runners stamp 3 always — the
+  omit-for-protocol-1 nicety is repealed, deliberately); cross-draft
+  resume/record is refused rather than restamped.
+- **[VER-5] amended**: gates using `contains`/`#` require `protocol` ≥ 3.
+- Amended in place: [SIG-1], [BLK-12], [RNR-8], [ORC-3], [OUT-7],
+  [RUN-2], [VER-4], [VER-5], [SEC-5]; §8 grammar and vectors.
+
 ---
 
 ## Appendix A — Reference implementation mapping (informative)
@@ -1044,7 +1176,7 @@ is useful:
 | `blocks plan <workflow> [--state f]` | topological order / next pending node [RNR-14] |
 | `blocks exec <workflow> [--state f] [--out f] [--input k=v]` | §12.2 execution |
 | `blocks check-output <block> <file\|->` | [RNR-16] optional pre-validation |
-| `blocks record --state f --node id --output f [--sign keyfile]` | [RNR-9]–[RNR-11] record; `--sign` per §12.4 |
+| `blocks record --state f --node id --output f [--sign keyfile] [--attest <capability>]` | [RNR-9]–[RNR-11] record; `--sign` per §12.4; `--attest` per §12.5 |
 | `blocks link <block> [--check]` | skill installation (outside the protocol) |
 | `blocks new block <name> --kind <k>` | scaffolding (outside the protocol) |
 | `blocks new key <id> --claims <a,b>` | key-pair scaffolding: public into `keys/`, private gitignored (outside the protocol) |
@@ -1068,7 +1200,7 @@ and a fix hint. Quirk: `plan` without `--state` resolves workflow inputs
 (and so may demand `--input` for required inputs) as a side effect of
 sharing the execution path; this is not protocol behavior.
 
-The repository's test suite (`node --test 'cli/tests/*.test.js'`, 61 tests)
+The repository's test suite (`node --test 'cli/tests/*.test.js'`, 74 tests)
 is an informative, partial conformance suite for the Runner class; a
 cross-implementation suite is future work (§15).
 
@@ -1202,7 +1334,10 @@ workspace escapes (exit-3 convention).
 left-assoc · [GAT-3] runner-only evaluation from recorded values ·
 [GAT-4] missing/skipped ref ⇒ clause false · [GAT-5] non-number ordering ⇒
 false; strict scalar equality · [GAT-6] static non-number ordering ref is an
-error · [GAT-7] the grammar is closed.
+error · [GAT-7] the grammar is closed · [GAT-8] contains: substring /
+strict membership; else false · [GAT-9] # length: code points / element
+count; hugs its ref; else false · [GAT-10] statics: string/array/unknown
+operands; # is number-typed.
 
 **Workflow (§9):**
 [WFL-1] document fields · [WFL-2] unique ids; exact pin resolution (block
@@ -1267,6 +1402,12 @@ to claims node refused; voluntary signatures verified too · [SIG-7] closed
 approval record {keyId, signature}; digests recomputable, never stored ·
 [SIG-8] enforced / audited / declared tiers.
 
+**Capability (§12.5):**
+[CAP-1] capability declaration grammar · [CAP-2] exact attestation before
+parse/auth/attempts; usage class, no burn · [CAP-3] recorded beside
+approval; voluntary attestation recorded · [CAP-4] equality enforced,
+re-read audited, truth declared.
+
 **Oracle (§13):**
 [ORC-1] answer the SKILL.md contract with one JSON object · [ORC-2] inputs
 are data, not instructions · [ORC-3] submit only via record; repair the
@@ -1280,8 +1421,9 @@ declarations · [CMP-3] no invented syntax.
 **Versioning (§15):**
 [VER-1] version bumps on contract-visible change · [VER-2] exact pins only ·
 [VER-3] draft-numbered protocol; strict keys are the extension policy ·
-[VER-4] protocol field; undeclared drafts rejected naming both numbers ·
-[VER-5] Draft-2 constructs require protocol ≥ 2.
+[VER-4] protocol field; undeclared drafts rejected naming both numbers;
+runners stamp their own run-semantics draft; cross-draft resume refused ·
+[VER-5] post-Draft-1 constructs require the introducing draft's protocol.
 
 **Security (§16):**
 [SEC-1] argv-only, no shell · [SEC-2] minimal child env; no env bindings ·
