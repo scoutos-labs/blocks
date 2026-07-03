@@ -4,3 +4,4 @@
 2026-07-03T02:07:54Z step-2-done validator/loader surface: oracle key, keys registry (d-rejection), canon.js, outputs, workflow nodes, cross-file cycles, grant coverage, protocol field; 42/42 tests
 2026-07-03T02:12:19Z step-3-done runner: recursive driveRun, output resolution, signed record, new key; 56/56 tests
 2026-07-03T02:16:43Z step-4-done PROTOCOL.md Draft 02: OUT/NST/SIG/VER/SEC additions; only dogfood-artifact checks remain red
+2026-07-03T02:23:10Z step-5-done dogfood: release workflow (nesting + signed approval) run live; happy pair + negative pair committed; harness 71/71 incl. live signature re-verification

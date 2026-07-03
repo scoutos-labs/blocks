@@ -1,0 +1,67 @@
+{
+  "workflow": "changelog-from-git",
+  "workflowFile": "workflows/changelog-from-git.workflow.json",
+  "workflowHash": "sha256:6edfa4006b694250f0fc9142b294d060ac82ed00ac0b8445c37226460704e8fa",
+  "runId": "r-211efc21",
+  "startedAt": "2026-07-03T02:21:27.957Z",
+  "inputs": {
+    "range": "HEAD~8..HEAD"
+  },
+  "nodes": {
+    "log": {
+      "status": "done",
+      "blockHash": "sha256:17d51bbcd25bca311d25a640057a73fcf5ce15c9c6901eaed42228ebed23c3ea",
+      "attempts": 1,
+      "output": {
+        "text": "ca3c9c8 2026-07-02 PROTOCOL.md Draft 01: interop spec of the Blocks skill protocol (steps 1-3)\n0f2e67e 2026-07-02 protocol repair pass: spec + implementation fixes from adversarial review\n1c13392 2026-07-02 blocks-skill-protocol: complete — Draft 01 published to zenbin\n4030357 2026-07-02 docs: PRD + progress for blocks-protocol-draft02 (plan approved)\n810a066 2026-07-02 draft02 step 1: harness extended with falsifiable Draft 02 checks\n8193a82 2026-07-02 draft02 step 2: validator + loader surface for composition and approvals\nca0f528 2026-07-02 draft02 step 3: recursive runner, workflow outputs, signed approvals\n983fb84 2026-07-02 draft02 step 4: PROTOCOL.md Draft 02 — composition, signed approvals, protocol field"
+      }
+    },
+    "draft": {
+      "status": "done",
+      "input": {
+        "text": "ca3c9c8 2026-07-02 PROTOCOL.md Draft 01: interop spec of the Blocks skill protocol (steps 1-3)\n0f2e67e 2026-07-02 protocol repair pass: spec + implementation fixes from adversarial review\n1c13392 2026-07-02 blocks-skill-protocol: complete — Draft 01 published to zenbin\n4030357 2026-07-02 docs: PRD + progress for blocks-protocol-draft02 (plan approved)\n810a066 2026-07-02 draft02 step 1: harness extended with falsifiable Draft 02 checks\n8193a82 2026-07-02 draft02 step 2: validator + loader surface for composition and approvals\nca0f528 2026-07-02 draft02 step 3: recursive runner, workflow outputs, signed approvals\n983fb84 2026-07-02 draft02 step 4: PROTOCOL.md Draft 02 — composition, signed approvals, protocol field",
+        "style": "markdown changelog grouped by change type (Features / Fixes / Docs / Internal), terse, user-facing, keep short hashes"
+      },
+      "blockHash": "sha256:cc64f0d1d0f4e1e4daebd6a802759a316f86b33cc4cdd96b9bef0c9b18ccc4d2",
+      "attempts": 1,
+      "output": {
+        "summary": "## Docs\n- PROTOCOL.md Draft 01: interoperability spec of the Blocks skill protocol (ca3c9c8), repaired after adversarial review (0f2e67e), published to zenbin (1c13392)\n- PRD and progress docs for protocol Draft 02 (4030357)\n\n## Internal\n- Draft 02, step by step: falsifiable harness checks (810a066), validator and loader surface for composition and approvals (8193a82), recursive runner with workflow outputs and signed approvals (ca0f528), and the Draft 02 protocol text itself (983fb84)"
+      }
+    },
+    "judge": {
+      "status": "done",
+      "input": {
+        "candidate": "## Docs\n- PROTOCOL.md Draft 01: interoperability spec of the Blocks skill protocol (ca3c9c8), repaired after adversarial review (0f2e67e), published to zenbin (1c13392)\n- PRD and progress docs for protocol Draft 02 (4030357)\n\n## Internal\n- Draft 02, step by step: falsifiable harness checks (810a066), validator and loader surface for composition and approvals (8193a82), recursive runner with workflow outputs and signed approvals (ca0f528), and the Draft 02 protocol text itself (983fb84)",
+        "criteria": "Every entry traces to a commit in the log below — no invented changes. Grouped by change type. Terse and user-facing. Log:\nca3c9c8 2026-07-02 PROTOCOL.md Draft 01: interop spec of the Blocks skill protocol (steps 1-3)\n0f2e67e 2026-07-02 protocol repair pass: spec + implementation fixes from adversarial review\n1c13392 2026-07-02 blocks-skill-protocol: complete — Draft 01 published to zenbin\n4030357 2026-07-02 docs: PRD + progress for blocks-protocol-draft02 (plan approved)\n810a066 2026-07-02 draft02 step 1: harness extended with falsifiable Draft 02 checks\n8193a82 2026-07-02 draft02 step 2: validator + loader surface for composition and approvals\nca0f528 2026-07-02 draft02 step 3: recursive runner, workflow outputs, signed approvals\n983fb84 2026-07-02 draft02 step 4: PROTOCOL.md Draft 02 — composition, signed approvals, protocol field"
+      },
+      "blockHash": "sha256:4f22ff367f1bd822a72dbfe91b2b4519e5d4dbe7bdebe08c5c03a421a3cc2997",
+      "attempts": 1,
+      "output": {
+        "score": 0.9,
+        "verdict": "pass",
+        "reasons": "All eight commits covered; every cited hash present in the log verbatim; grouped and terse."
+      }
+    },
+    "render": {
+      "status": "done",
+      "blockHash": "sha256:010c1c7921816c58542a61303b355e9dec1ba7744b833aeb9eb6de86501e9268",
+      "attempts": 1,
+      "output": {
+        "text": "# Changelog\n\n_range: HEAD~8..HEAD — judged 0.9_\n\n## Docs\n- PROTOCOL.md Draft 01: interoperability spec of the Blocks skill protocol (ca3c9c8), repaired after adversarial review (0f2e67e), published to zenbin (1c13392)\n- PRD and progress docs for protocol Draft 02 (4030357)\n\n## Internal\n- Draft 02, step by step: falsifiable harness checks (810a066), validator and loader surface for composition and approvals (8193a82), recursive runner with workflow outputs and signed approvals (ca0f528), and the Draft 02 protocol text itself (983fb84)\n"
+      }
+    },
+    "publish": {
+      "status": "done",
+      "blockHash": "sha256:33bab6e50d95150ef16c9214636210af983d2ea910880c113eb49acf040ae7bb",
+      "attempts": 1,
+      "output": {
+        "path": "CHANGELOG.md",
+        "bytes": 542
+      }
+    }
+  },
+  "protocol": 2,
+  "output": {
+    "changelog": "# Changelog\n\n_range: HEAD~8..HEAD — judged 0.9_\n\n## Docs\n- PROTOCOL.md Draft 01: interoperability spec of the Blocks skill protocol (ca3c9c8), repaired after adversarial review (0f2e67e), published to zenbin (1c13392)\n- PRD and progress docs for protocol Draft 02 (4030357)\n\n## Internal\n- Draft 02, step by step: falsifiable harness checks (810a066), validator and loader surface for composition and approvals (8193a82), recursive runner with workflow outputs and signed approvals (ca0f528), and the Draft 02 protocol text itself (983fb84)\n"
+  }
+}

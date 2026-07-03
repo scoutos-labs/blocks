@@ -1,0 +1,52 @@
+{
+  "workflow": "release",
+  "workflowFile": "workflows/release.workflow.json",
+  "workflowHash": "sha256:4d00815fae4c6f41c7be847330f90061c130966f384b165a325447b1e0bcf386",
+  "runId": "r-c969c5ba",
+  "startedAt": "2026-07-03T02:21:27.955Z",
+  "inputs": {
+    "range": "HEAD~8..HEAD"
+  },
+  "nodes": {
+    "changelog": {
+      "status": "done",
+      "childRun": "runs/changelog-from-git-r-211efc21.run.json",
+      "workflowHash": "sha256:6edfa4006b694250f0fc9142b294d060ac82ed00ac0b8445c37226460704e8fa",
+      "attempts": 1,
+      "output": {
+        "changelog": "# Changelog\n\n_range: HEAD~8..HEAD — judged 0.9_\n\n## Docs\n- PROTOCOL.md Draft 01: interoperability spec of the Blocks skill protocol (ca3c9c8), repaired after adversarial review (0f2e67e), published to zenbin (1c13392)\n- PRD and progress docs for protocol Draft 02 (4030357)\n\n## Internal\n- Draft 02, step by step: falsifiable harness checks (810a066), validator and loader surface for composition and approvals (8193a82), recursive runner with workflow outputs and signed approvals (ca0f528), and the Draft 02 protocol text itself (983fb84)\n"
+      }
+    },
+    "approve": {
+      "status": "done",
+      "input": {
+        "candidate": "# Changelog\n\n_range: HEAD~8..HEAD — judged 0.9_\n\n## Docs\n- PROTOCOL.md Draft 01: interoperability spec of the Blocks skill protocol (ca3c9c8), repaired after adversarial review (0f2e67e), published to zenbin (1c13392)\n- PRD and progress docs for protocol Draft 02 (4030357)\n\n## Internal\n- Draft 02, step by step: falsifiable harness checks (810a066), validator and loader surface for composition and approvals (8193a82), recursive runner with workflow outputs and signed approvals (ca0f528), and the Draft 02 protocol text itself (983fb84)\n"
+      },
+      "blockHash": "sha256:feeb9e9055fe1158be2c2750129e2acef983acb2c6ac330b27f1e306d8185047",
+      "attempts": 1,
+      "output": {
+        "approved": true,
+        "approver": "k-tom",
+        "reason": "Every changelog entry traces to a commit in HEAD~8..HEAD with its real hash; judged 0.9 upstream; safe to cut."
+      },
+      "approval": {
+        "keyId": "k-tom",
+        "signature": "eOAGbG1c2vFdwfLrl7w4CEnBsWXxhb9TG1Dd1gGnaTw2N7vDz1z4k3ZYqpZ0GQlKmfuBAqgp7PbqeTlj8hE2Ag"
+      }
+    },
+    "cut": {
+      "status": "done",
+      "blockHash": "sha256:33bab6e50d95150ef16c9214636210af983d2ea910880c113eb49acf040ae7bb",
+      "attempts": 1,
+      "output": {
+        "path": "RELEASE.md",
+        "bytes": 687
+      }
+    }
+  },
+  "protocol": 2,
+  "output": {
+    "changelog": "# Changelog\n\n_range: HEAD~8..HEAD — judged 0.9_\n\n## Docs\n- PROTOCOL.md Draft 01: interoperability spec of the Blocks skill protocol (ca3c9c8), repaired after adversarial review (0f2e67e), published to zenbin (1c13392)\n- PRD and progress docs for protocol Draft 02 (4030357)\n\n## Internal\n- Draft 02, step by step: falsifiable harness checks (810a066), validator and loader surface for composition and approvals (8193a82), recursive runner with workflow outputs and signed approvals (ca0f528), and the Draft 02 protocol text itself (983fb84)\n",
+    "released": "RELEASE.md"
+  }
+}

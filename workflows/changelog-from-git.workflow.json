@@ -1,11 +1,15 @@
 {
   "name": "changelog-from-git",
-  "version": 1,
+  "version": 2,
+  "protocol": 2,
   "notes": "Draft a changelog from the commit log, judge it against the log, publish only if it passes.",
   "inputs": {
     "range": { "type": "string", "default": "HEAD~15..HEAD", "description": "git revision range to summarize" }
   },
   "grants": { "run": ["git"], "read": [], "write": ["CHANGELOG.md"] },
+  "outputs": {
+    "changelog": { "from": "{{nodes.render.output.text}}", "type": "string", "required": false }
+  },
   "nodes": [
     {
       "id": "log",

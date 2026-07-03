@@ -1,0 +1,14 @@
+{
+  "name": "approve-release",
+  "version": 1,
+  "kind": "fuzzy",
+  "inputs": {
+    "candidate": { "type": "string", "description": "the artifact awaiting release approval" }
+  },
+  "outputs": {
+    "approved": { "type": "boolean" },
+    "approver": { "type": "string", "description": "who is accountable for this decision" },
+    "reason": { "type": "string", "description": "the decisive consideration, one or two sentences" }
+  },
+  "oracle": { "claims": ["release-approver"] }
+}

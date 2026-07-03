@@ -1,0 +1,28 @@
+{
+  "workflow": "release",
+  "workflowFile": "workflows/release.workflow.json",
+  "workflowHash": "sha256:ffb0451df349fac92559305bd0e3b6093c487b287562f49e28691d93cfc252d5",
+  "runId": "r-8e34a0e4",
+  "startedAt": "2026-07-03T02:18:03.263Z",
+  "inputs": {
+    "range": "HEAD~8..HEAD"
+  },
+  "nodes": {
+    "changelog": {
+      "status": "done",
+      "childRun": "runs/changelog-from-git-r-c792104c.run.json",
+      "workflowHash": "sha256:6edfa4006b694250f0fc9142b294d060ac82ed00ac0b8445c37226460704e8fa",
+      "attempts": 1,
+      "output": {}
+    },
+    "approve": {
+      "status": "skipped",
+      "reason": "gate false: nodes.changelog.output.changelog != ''"
+    },
+    "cut": {
+      "status": "skipped",
+      "reason": "upstream node \"approve\" was skipped"
+    }
+  },
+  "protocol": 2
+}

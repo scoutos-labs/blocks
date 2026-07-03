@@ -1,0 +1,11 @@
+{
+  "keyId": "k-tom",
+  "publicJwk": {
+    "crv": "Ed25519",
+    "x": "Cwk8PsRR_cuiQWxl0jwerMjku4bPHTiKypCsV489zao",
+    "kty": "OKP"
+  },
+  "claims": [
+    "release-approver"
+  ]
+}

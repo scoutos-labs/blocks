@@ -1,0 +1,38 @@
+{
+  "name": "release",
+  "version": 1,
+  "protocol": 2,
+  "notes": "Compose the changelog workflow, require a signed approval, then cut a release note. Composition + AAITL in one DAG.",
+  "inputs": {
+    "range": { "type": "string", "default": "HEAD~8..HEAD", "description": "git revision range for the changelog" }
+  },
+  "grants": { "run": ["git"], "read": [], "write": ["CHANGELOG.md", "RELEASE.md"] },
+  "outputs": {
+    "changelog": { "from": "{{nodes.changelog.output.changelog}}", "type": "string", "required": false },
+    "released": { "from": "{{nodes.cut.output.path}}", "type": "string", "required": false }
+  },
+  "nodes": [
+    {
+      "id": "changelog",
+      "workflow": "changelog-from-git@2",
+      "notes": "the whole Draft-01 changelog pipeline, embedded as one node",
+      "in": { "range": "{{inputs.range}}" }
+    },
+    {
+      "id": "approve",
+      "block": "approve-release@1",
+      "when": "nodes.changelog.output.changelog != ''",
+      "notes": "authoritative gate: requires a key with the release-approver claim",
+      "in": { "candidate": "{{nodes.changelog.output.changelog}}" }
+    },
+    {
+      "id": "cut",
+      "block": "write-file@1",
+      "when": "nodes.approve.output.approved == true",
+      "in": {
+        "path": "RELEASE.md",
+        "content": "# Release\n\napproved by {{nodes.approve.output.approver}} — {{nodes.approve.output.reason}}\n\n{{nodes.changelog.output.changelog}}"
+      }
+    }
+  ]
+}

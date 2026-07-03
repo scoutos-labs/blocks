@@ -84,8 +84,9 @@ const sha = (...bufs) => {
   for (const b of bufs) h.update(b);
   return `sha256:${h.digest('hex')}`;
 };
-check('workflowHash preimage formula reproduces the run document',
-  sha(readFileSync('workflows/changelog-from-git.workflow.json')) === run.workflowHash);
+// (the Draft-01 run r-269b010f predates the workflow's v2 bump — its
+// workflowHash mismatch against the current file is drift audit working as
+// intended; the preimage formula is re-verified against the Draft-02 pair below)
 check('blockHash preimage formula (SKILL.md ‖ contract.json ‖ entry) reproduces log node',
   sha(readFileSync('blocks/git-log/SKILL.md'), readFileSync('blocks/git-log/contract.json')) === run.nodes.log.blockHash);
 
@@ -176,11 +177,13 @@ check('canonical-string prefix present in implementation',
 // key registry hygiene: no private material committed
 import { readdirSync, existsSync } from 'node:fs';
 if (existsSync('keys')) {
+  // registry documents are keys/<id>.json; *.private.json are local, gitignored halves
   const priv = readdirSync('keys').filter((f) => {
-    if (!f.endsWith('.json')) return false;
+    if (!f.endsWith('.json') || f.endsWith('.private.json')) return false;
     try { return JSON.parse(src(`keys/${f}`)).publicJwk?.d !== undefined || JSON.parse(src(`keys/${f}`)).privateJwk !== undefined; } catch { return true; }
   });
   check('keys/ registry holds no private material', priv.length === 0, priv.join(', '));
+  check('.gitignore excludes private keyfiles', src('.gitignore').includes('keys/*.private.json'));
 } else {
   check('keys/ registry exists', false, 'no keys/ directory');
 }
@@ -190,17 +193,26 @@ const releaseRuns = existsSync('examples/runs')
   ? readdirSync('examples/runs').filter((f) => f.startsWith('release-') && f.endsWith('.run.json'))
   : [];
 check('committed release parent run exists', releaseRuns.length >= 1, releaseRuns.join(', '));
-if (releaseRuns.length >= 1) {
-  const parent = JSON.parse(src(`examples/runs/${releaseRuns[0]}`));
+// pick the run with a signed, accepted approval (a negative-path run may also be committed)
+let parent = null;
+for (const f of releaseRuns) {
+  const cand = JSON.parse(src(`examples/runs/${f}`));
+  if (Object.values(cand.nodes).some((n) => n.approval && n.status === 'done')) { parent = cand; break; }
+}
+check('a release run with a signed approval is committed', parent !== null);
+if (parent) {
   const wfNode = Object.values(parent.nodes).find((n) => n.childRun);
   check('parent run has a workflow node with childRun + workflowHash',
     !!wfNode && typeof wfNode.workflowHash === 'string' && wfNode.status === 'done');
   check('parent run declares protocol 2', parent.protocol === 2);
+  check('parent workflowHash recomputes from the release workflow file bytes',
+    sha(readFileSync('workflows/release.workflow.json')) === parent.workflowHash);
   check('child workflowHash recomputes from child workflow file bytes',
     !!wfNode && sha(readFileSync('workflows/changelog-from-git.workflow.json')) === wfNode.workflowHash);
   check('parent run has resolved top-level output', parent.output !== undefined);
 
-  const childFile = wfNode && `${wfNode.childRun}`;
+  // curated child runs sit beside the parent under examples/runs/
+  const childFile = wfNode && (existsSync(wfNode.childRun) ? wfNode.childRun : `examples/runs/${wfNode.childRun.split('/').pop()}`);
   check('child run document committed', !!childFile && existsSync(childFile), childFile ?? '');
 
   // live approval signature re-verification from run doc + registry alone

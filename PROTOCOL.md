@@ -1104,6 +1104,43 @@ For the negative path, the committed triage run
 "route-backlog": { "status": "skipped", "reason": "gate false: nodes.severity.output.label != 'p1'" }
 ```
 
+(That run and `changelog-from-git-r-269b010f` predate the workflow's
+version-2 bump; their recorded `workflowHash` values no longer match the
+current file bytes — which is [RUN-2]'s drift audit doing its job.)
+
+### Draft 02 worked example: composition + a signed approval
+
+`workflows/release.workflow.json` embeds the entire changelog pipeline as
+one node and gates the release on an authoritative approval:
+
+```json
+{ "id": "changelog", "workflow": "changelog-from-git@2",
+  "in": { "range": "{{inputs.range}}" } },
+{ "id": "approve", "block": "approve-release@1",
+  "when": "nodes.changelog.output.changelog != ''",
+  "in": { "candidate": "{{nodes.changelog.output.changelog}}" } }
+```
+
+The committed pair `examples/runs/release-r-c969c5ba.run.json` (parent) and
+`examples/runs/changelog-from-git-r-211efc21.run.json` (child) is a real,
+completed run: the parent's `changelog` node carries `childRun` and the
+child file's recomputable `workflowHash`; the `approve` node carries a
+verified approval —
+
+```json
+"approval": { "keyId": "k-tom", "signature": "fvUxKEaBXzin..." }
+```
+
+— which the consistency harness re-verifies on every run from the run
+documents plus `keys/k-tom.json` alone, exactly per [SIG-3]/[SIG-7]. An
+unsigned submission to that node was refused with exit 3 and no attempt
+burned ([SIG-5]; the transcript is in the repository history). A second
+committed pair (`release-r-8e34a0e4` / `changelog-from-git-r-c792104c`)
+shows the negative path end-to-end: the child's judge scored a draft with
+invented hashes 0.3/revise, the child's gated nodes skipped, the optional
+`changelog` output was omitted [OUT-4], the parent's approval gate
+evaluated false [OUT-7], and nothing was published.
+
 ## Appendix C — Conformance checklist (normative)
 
 Every requirement in this draft, one line each. An implementation claims a

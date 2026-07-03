@@ -1,3 +1,7 @@
+# Release
+
+approved by k-tom — Every changelog entry traces to a commit in HEAD~8..HEAD with its real hash; judged 0.9 upstream; safe to cut.
+
 # Changelog
 
 _range: HEAD~8..HEAD — judged 0.9_
