@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PRD — Blocks Skill Protocol Draft 03 (capability, gate ops, hash split)</title>
+<style>
+  :root { --ink:#1a1d23; --muted:#6b7280; --line:#e5e7eb; --bg:#fafaf8; --card:#fff; }
+  body { font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:var(--bg); margin:0; padding:2rem 1rem; }
+  main { max-width:960px; margin:0 auto; }
+  h1 { font-size:1.5rem; } h2 { font-size:1.15rem; margin-top:2rem; border-bottom:1px solid var(--line); padding-bottom:.3rem; }
+  code { font-family:ui-monospace,Menlo,monospace; font-size:.85em; background:#eef0ee; padding:.1em .35em; border-radius:4px; }
+  table { border-collapse:collapse; width:100%; margin:1rem 0; background:var(--card); font-size:.92em; }
+  th, td { border:1px solid var(--line); padding:.45rem .65rem; text-align:left; vertical-align:top; }
+  th { background:#f3f4f1; }
+  .meta { color:var(--muted); font-size:.85rem; }
+  .step { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:1rem 1.2rem; margin:1rem 0; }
+  .step h3 { margin-top:0; font-size:1rem; }
+  ul { padding-left:1.3rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Blocks Skill Protocol — Draft 03: oracle capability, gate extension, blockHash split</h1>
+<p class="meta">PRD · slug <code>blocks-protocol-draft03</code> · 2026-07-03 · scope FIXED (user-approved, 3 items) · status: plan approved</p>
+
+<h2>Definition</h2>
+<p>Draft 03 adds two small surfaces and corrects one preimage, keeping the co-signing symmetry and the honest tiers: (1) <strong><code>oracle.capability</code></strong> — a fuzzy contract names the oracle grade its rubric is calibrated against; oracles self-attest at record; truth is declared-tier. (2) <strong>Gate extension</strong> — a <code>contains</code> operator and a <code>#ref</code> length modifier, operators-not-functions, [GAT-7] ban list untouched. (3) <strong>blockHash preimage split</strong> — det blocks hash <code>contract.json ‖ entry</code> (prose is descriptive); fuzzy blocks unchanged (prose IS the contract); hashes become <em>draft-scoped</em>.</p>
+
+<h2>Fixed design decisions (planner, settled)</h2>
+<table>
+  <tr><th>Area</th><th>Decision</th></tr>
+  <tr><td>Attestation</td><td><code>oracle</code> gains <code>capability</code> (string, claim grammar); at least one of claims/capability; fuzzy-only. <code>record --attest &lt;string&gt;</code> checked after the drift check, <strong>before parse/auth/attempts</strong>: absent/mismatch → <strong>usage error (2)</strong>, no state change, no burn. Exit 3 is reserved for mechanism-enforced authority; attestation has none — classing it 3 would fake a tier. Accepted records carry <code>capability</code>; voluntary attestation allowed + recorded; pause conveys the demand. <strong>No [SIG-3] binding, closed permanently:</strong> for declaring blocks the demand is already transitively signed via blockHash → contract; binding a voluntary attestation would tier-launder a self-statement. Tiers ([CAP-4]): equality enforced · re-read audited · truth declared.</td></tr>
+  <tr><td>Gates</td><td>Grammar: <code>clause = operand op literal</code>, <code>operand = ["#"] ref</code> (no whitespace), <code>op += contains</code>. <code>contains</code>: string→substring (empty literal true), array→strict-scalar membership, else false; static: left string/array/unknown; string-left + non-string literal is a static error. <code>#ref</code>: statically number; string → <strong>Unicode code points</strong> (astral vector: 🚀🚀 = 2); array → count; else clause false; <code>#inputs.key</code> legal. Missing/skipped refs stay [GAT-4]-false. No <code>not contains</code>. [OUT-7] pattern becomes <code>#… &gt; 0</code>; <code>!= ''</code> stays valid. IDs: [GAT-8/9/10] added, 1..7 verbatim.</td></tr>
+  <tr><td>Hash split</td><td>[RUN-2] amended: det → <code>contract.json ‖ entry</code>; fuzzy unchanged. <strong>Draft-scoped hashes:</strong> a run's hashes are interpreted under the draft it declares; recomputing an old run under a new preimage is a category error, not drift. Not a conformance break — audited every blockHash-touching operation: [RNR-9] pause-check is fuzzy-only (unchanged), [SIG-3] uses the fuzzy hash (committed approval survives the split), [RUN-8] compares same-runner runs. [VER-4] amended: Draft-03 runners stamp <code>protocol: 3</code> on every new run (the run embodies Draft-03 preimages); cross-draft resume/record is <strong>refused</strong> (restamping would mint mixed-formula documents).</td></tr>
+  <tr><td>IDs / sections</td><td>New §12.5 [CAP-1..4]; [GAT-8..10]; amend in place: [SIG-1], [BLK-12], [RNR-8], [ORC-3], [OUT-7], [RUN-2], [VER-4], [VER-5] (gates using <code>contains</code>/<code>#</code> require protocol ≥ 3). §18 frozen; new §19 "Changes from Draft 02". <code>IMPLEMENTED_PROTOCOL = 3</code>. Never renumber.</td></tr>
+  <tr><td>Dogfood</td><td>approve-release v2 adds <code>capability: "release-judgment-v1"</code> beside claims (both mechanisms on one block; registry untouched — capability is not a claim). release.workflow v2, protocol 3, pin @2, gate <code>#nodes.changelog.output.changelog &gt; 0 and nodes.changelog.output.changelog contains 'Changelog'</code> (both new constructs, deliberately). Fresh live nested+signed+attested run replaces the harness target; old pairs stay committed as history with disclosure (old approval remains verifiable against v1 bytes in git history).</td></tr>
+</table>
+
+<h2>Plan — 7 steps</h2>
+<div class="step"><h3>Step 1 — Red (harness + tests first)</h3>
+<ul><li><strong>AC:</strong> harness gains Draft-03 checks (banner, CAP ids, fields, ops in doc+impl, per-kind preimage recomputes incl. entry + fuzzy variants, protocol 3 stamp, §19, draft-scoped sentence, [VER-5] clause); new <code>draft03.test.js</code>: gate vectors both ways (astral, <code># ref</code> whitespace, <code>inputs.contains</code> non-collision, skip falsity, type falsity), oracle shape matrix, attest exit/burn matrix (missing→2 no burn; mismatch→2 no burn; attest-ok+bad-sig→3 no burn; full-ok+bad-schema→1 burn; voluntary recorded), hashBlock split ×3 kinds, cross-draft resume refusal. All fail naming the missing construct; all existing checks/tests pass.</li>
+<li><strong>Evidence:</strong> harness ✗ list; test transcript.</li></ul></div>
+<div class="step"><h3>Step 2 — Preimage + protocol plumbing</h3>
+<ul><li><strong>AC:</strong> hashBlock kind branch; stamp 3 on all new runs; refuse resume/record into protocol &lt; 3 runs; IMPLEMENTED_PROTOCOL 3. Hash/stamp/resume tests green; any test edited for the old formula listed explicitly.</li>
+<li><strong>Evidence:</strong> test run + manual exec transcript showing protocol-3 run with contract-only det hash.</li></ul></div>
+<div class="step"><h3>Step 3 — Gate extension</h3>
+<ul><li><strong>AC:</strong> tokenizer/parser/eval for <code>#</code> and <code>contains</code>; [GAT-10] statics; [VER-5] draft-3 detection. All vectors green; [GAT-7] bans re-verified; protocol-2 workflow using <code>#</code> fails with the [VER-5] hint.</li>
+<li><strong>Evidence:</strong> tests + one failing-validate transcript.</li></ul></div>
+<div class="step"><h3>Step 4 — Capability attestation</h3>
+<ul><li><strong>AC:</strong> loader oracle object (claims and/or capability); record --attest at the pinned position; <code>rec.capability</code>; pause line; HELP text. Full matrix green; record transcript shows capability beside approval.</li>
+<li><strong>Evidence:</strong> tests + transcript.</li></ul></div>
+<div class="step"><h3>Step 5 — PROTOCOL.md Draft 03</h3>
+<ul><li><strong>AC:</strong> banner; §12.5 with the no-SIG-binding paragraph; §8 grammar+vectors; all in-place amendments; §19; App A/C/D updates; [SEC-5] secret-length note. Only fresh-artifact checks remain red.</li>
+<li><strong>Evidence:</strong> harness output with exactly those ✗.</li></ul></div>
+<div class="step"><h3>Step 6 — Dogfood refresh</h3>
+<ul><li><strong>AC:</strong> approve-release v2; release v2 (protocol 3, new pin+gate); live nested+signed+attested run committed; harness repointed; Appendix B Draft-03 example + disclosure. <strong>ALL PASS</strong>; suite green; old run files byte-untouched.</li>
+<li><strong>Evidence:</strong> ALL PASS transcript; git status of old pairs; new run docs.</li></ul></div>
+<div class="step"><h3>Step 7 — Adversarial gate + publish</h3>
+<ul><li><strong>AC:</strong> reviewer (implementer + editor personas) over the new surface; findings repaired or recorded as residual; HTML regenerated; zenbin republished bytes-identical; SPEC.md blockHash sentence synced.</li>
+<li><strong>Evidence:</strong> review report + fix diff; fetch-back compare; final harness+suite green.</li></ul></div>
+
+<h2>Constraints / non-goals</h2>
+<ul>
+  <li>Scope fixed at the 3 items; env/retry/fan-out/path semantics stay deferred. Never renumber IDs; §18 frozen. Old artifacts never rewritten. Private keys never committed. All-additive for documents (hashes draft-scoped, not retro-invalidated); in-flight protocol-2 runs die at upgrade — disclosed, accepted.</li>
+</ul>
+
+<h2>Validation commands</h2>
+<p><code>node docs/blocks-protocol-check.mjs PROTOCOL.md</code> · <code>node --test 'cli/tests/*.test.js'</code> · <code>cli/bin/blocks validate workflows/*.workflow.json</code> · zenbin fetch-back compare.</p>
+
+<h2>Definition of done</h2>
+<ul><li>7 steps with evidence; harness ALL PASS incl. per-kind preimage recomputes and the attested+signed fresh run; suite green; both gates clear (taste/originality ≥ 4); Draft 03 published; SPEC.md synced; memory updated.</li></ul>
+
+<h2>Open questions — proceed-with assumptions</h2>
+<ul><li>Code points for length (astral vector pins it). Cross-draft resume: refuse, never restamp. Stamp 3 even on protocol-2 workflows' runs (preimage is run-semantics). approve-release v2 ends worktree re-verification of the old approval — verifiable against v1 bytes in history, disclosed. Attestation class 2 (contestable; flipping to 3 later costs one word + two test expectations).</li></ul>
+</main>
+</body>
+</html>
