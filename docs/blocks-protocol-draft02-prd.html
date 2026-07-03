@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PRD — Blocks Skill Protocol Draft 02 (composition + signed approvals)</title>
+<style>
+  :root { --ink:#1a1d23; --muted:#6b7280; --line:#e5e7eb; --bg:#fafaf8; --card:#fff; }
+  body { font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:var(--bg); margin:0; padding:2rem 1rem; }
+  main { max-width:960px; margin:0 auto; }
+  h1 { font-size:1.5rem; } h2 { font-size:1.15rem; margin-top:2rem; border-bottom:1px solid var(--line); padding-bottom:.3rem; } h3 { font-size:1rem; }
+  code { font-family:ui-monospace,Menlo,monospace; font-size:.85em; background:#eef0ee; padding:.1em .35em; border-radius:4px; }
+  pre { font-family:ui-monospace,Menlo,monospace; font-size:.8em; background:#14171c; color:#d8dee4; padding:.8rem 1rem; border-radius:6px; overflow-x:auto; }
+  table { border-collapse:collapse; width:100%; margin:1rem 0; background:var(--card); font-size:.92em; }
+  th, td { border:1px solid var(--line); padding:.45rem .65rem; text-align:left; vertical-align:top; }
+  th { background:#f3f4f1; }
+  .meta { color:var(--muted); font-size:.85rem; }
+  .step { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:1rem 1.2rem; margin:1rem 0; }
+  .step h3 { margin-top:0; }
+  ul { padding-left:1.3rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Blocks Skill Protocol — Draft 02: workflow composition + signed approvals</h1>
+<p class="meta">PRD · slug <code>blocks-protocol-draft02</code> · 2026-07-02 · deliverables: PROTOCOL.md Draft 02 + reference implementation + dogfood example + zenbin republish · status: plan approved</p>
+
+<h2>Definition</h2>
+<p>Draft 02 adds two capabilities as <strong>one symmetry applied twice more</strong> — grants co-sign a block's capabilities (Draft 01); parents co-sign a child workflow's grants (composition); approvals co-sign an oracle's judgment (AAITL):</p>
+<ul>
+  <li><strong>Composition:</strong> workflows declare typed <code>outputs</code>; a node may be <code>workflow: "name@version"</code> instead of <code>block</code>. Nesting is acyclic composition, not recursion. "Functions get return values."</li>
+  <li><strong>Signed approvals:</strong> fuzzy contracts may require <code>oracle.claims</code>; answers must be Ed25519-signed by a workspace-registered key carrying those claims; signer-agnostic (human or agent). No PKI.</li>
+</ul>
+<p>All changes are additive: a Draft-02 validator accepts every Draft-01 document. Spec and reference implementation land together; the consistency harness must stay green including a new check that <em>re-verifies a real committed approval signature from the run document + registry using the spec's own formula</em>.</p>
+
+<h2>Fixed design decisions (from planner, all challenged and settled)</h2>
+<table>
+  <tr><th>Area</th><th>Decision</th></tr>
+  <tr><td>Workflow outputs</td><td>Inline closed declarations: <code>"outputs": {"name": {"from": "{{wire}}", "type": ..., "required": false}}</code> — embeds schema-lite (strip <code>from</code>, run checkSchemaDef; [SCH-8] untouched); <code>from</code> reuses §7 verbatim with the declaration as [WIR-6] target. Resolved at completion into top-level <code>output</code> (deterministic, recomputable; [RUN-6] undisturbed). Skipped/failed source: <code>required:false</code> → key <em>omitted</em> (never null); required → exit 1 naming output + cut node. Consumers gate on the output itself ([GAT-4] pattern). Outputs create no execution edges.</td></tr>
+  <tr><td>Workflow-as-node</td><td>Node has exactly one of <code>block</code> | <code>workflow</code>; pin <code>name@version</code> vs <code>workflows/&lt;name&gt;.workflow.json</code> declared version; separate namespaces. <strong>Grants: parent MUST cover every child grant</strong> (cover semantics, grant-vs-grant) and child grants count as declarations for [PRM-4]; leaf effective capability unchanged by embedding; root grants = complete reviewable statement; runtime intersection stays as defense-in-depth. Cross-file include acyclicity with full cycle path. Child inputs only via <code>in</code> (child defaults fill); <code>--input</code> binds root only.</td></tr>
+  <tr><td>Child runs</td><td>Separate files. Parent node record: pending + <code>childRun</code> (relative path) + <code>workflowHash</code> (child file bytes) → done + <code>attempts:1</code> + <code>output</code> (child outputs copied in), or failed (terminal) naming child node. Pause bubbling: ordinary printout, record targets the child run — no nested addressing. <code>childRun</code> exempt from [RUN-8] comparison (run identity); <code>workflowHash</code>/<code>status</code>/<code>output</code> not exempt.</td></tr>
+  <tr><td>Signed approvals</td><td>Fuzzy-only closed <code>"oracle": {"claims": [...]}</code>. Registry <code>keys/&lt;keyId&gt;.json</code> = closed {keyId, publicJwk(Ed25519), claims}; private material (<code>d</code>) in registry = validation error. Canonical string: <code>blocks-approval-v2\n&lt;workflowHash&gt;\n&lt;runId&gt;\n&lt;nodeId&gt;\n&lt;inputDigest&gt;\n&lt;answerDigest&gt;</code>, digests = sha256 over JCS-lite canonical JSON (sorted keys, no whitespace, ECMAScript numbers; <code>src/canon.js</code>). <strong>Authenticate before contract; auth failure = exit 3, no state change, no attempt increment</strong> (kills unauth DoS). Node record gains closed <code>approval: {keyId, signature}</code>; digests recomputable, never stored. Voluntary <code>--sign</code> on any fuzzy node must verify. <code>grants.claims</code> rejected (claims are demands on the approver, not capabilities of a block). Tiers: record-time verify = enforced; post-hoc verify = audited; claim semantics = declared.</td></tr>
+  <tr><td>Protocol field</td><td>OPTIONAL <code>protocol</code> (positive int) on workflow + run documents; absent = 1. [VER-4]: MUST reject undeclared drafts naming both numbers. [VER-5]: any post-Draft-1 construct requires <code>protocol</code> ≥ introducing draft (statically checkable). Runners stamp runs with the workflow's effective protocol; Draft-1 workflows' runs stay Draft-01-readable.</td></tr>
+  <tr><td>ID discipline</td><td>Never renumber. New prefixes [OUT-1..~7], [NST-1..~11], [SIG-1..~9], [VER-4..5], [SEC-8..9]; amend in place: WFL-1/2/6, BLK-5/12, RUN-1/3/4/8, RNR-8/9/11, PRM-4/5/6, §17, App A–C; new §18 "Changes from Draft 01" (placed to avoid anchor renumbering). ~128 total IDs.</td></tr>
+</table>
+
+<h2>Security analysis commitments (must appear in spec + tests)</h2>
+<ul>
+  <li>Replay bound by domain prefix + workflowHash + runId + nodeId + input/answer digests; identical-context replay idempotent via [RNR-10].</li>
+  <li>Unauth DoS neutralized by no-attempt-increment-on-auth-failure. Tested.</li>
+  <li>Signature stripping via contract/run-doc edits = workspace-write actor; audited (blockHash shift; post-hoc verify breaks), stated per [PRM-7] honesty.</li>
+  <li>No expiry/revocation: declared limitation; registry file deletion + git history is the mechanism. No PKI.</li>
+  <li>Cross-protocol signature reuse blocked by domain prefix.</li>
+</ul>
+
+<h2>Plan — 7 steps</h2>
+<div class="step"><h3>Step 1 — Extend harness first (falsifiable)</h3>
+<ul><li><strong>AC:</strong> new checks: Draft 02 banner; OUT/NST/SIG ID presence + gaplessness; new fields named; canonical-string prefix cross-checked against src; child workflowHash recompute; <strong>committed approval signature re-verified from run doc + registry via the spec formula</strong>. Fails on current state with exactly the new checks; old checks pass.</li>
+<li><strong>Evidence:</strong> harness output.</li></ul></div>
+<div class="step"><h3>Step 2 — Validator + loader surface</h3>
+<ul><li><strong>AC:</strong> <code>oracle</code> key (fuzzy-only, closed); <code>src/keys.js</code> (shape, d-rejection, keyId=filename); <code>src/canon.js</code>; WF_KEYS+outputs/protocol; NODE_KEYS+workflow (xor block); recursive child validation with cross-file cycle paths; output declarations via checkTemplate; grant coverage extension; VER-4/5. New failing-fixture tests + all 34 existing green.</li>
+<li><strong>Evidence:</strong> node --test output.</li></ul></div>
+<div class="step"><h3>Step 3 — Runner</h3>
+<ul><li><strong>AC:</strong> exec refactored to recursive execRun; child state files; pause bubbling (conveys child run path; record command unchanged in shape); completion/failure mapping; outputs resolution with required/optional semantics; record --sign (canonical string, verify, authenticate-before-contract, exit 3 without attempt increment); <code>blocks new key</code>; HELP + graph updated. Tests: pause-in-child + resume-through-parent; child failure terminal; nested det-only double-run diff clean modulo childRun; optional-output omission + gate-on-output; required-output exit 1; unsigned/wrong-claims/bad-sig refusals with attempts untouched; signed happy path; voluntary signature.</li>
+<li><strong>Evidence:</strong> full suite green.</li></ul></div>
+<div class="step"><h3>Step 4 — PROTOCOL.md Draft 02</h3>
+<ul><li><strong>AC:</strong> banner supersedes Draft 01; amendments in place (same IDs); new §9.1/§9.2/§10.1/§12.4/§18; VER-4/5, SEC-8/9; App A/B/C updated; harness ALL PASS (checklist coverage, gapless, anchors, RFC lint).</li>
+<li><strong>Evidence:</strong> harness output.</li></ul></div>
+<div class="step"><h3>Step 5 — Dogfood example</h3>
+<ul><li><strong>AC:</strong> changelog-from-git v2 (protocol 2, optional <code>changelog</code> output); new <code>approve-release@1</code> fuzzy block with claims; new <code>release.workflow.json</code> nesting the changelog workflow, gate-on-output, signed approval, gated publish; <code>k-tom</code> key (public committed, private never); live end-to-end run with real signature; parent+child runs committed; harness constants repointed to fresh artifacts.</li>
+<li><strong>Evidence:</strong> committed run files; harness recompute+verify pass; CLI transcript.</li></ul></div>
+<div class="step"><h3>Step 6 — Adversarial review gate</h3>
+<ul><li><strong>AC:</strong> reviewer personas (implementer derivation + skeptical editor) over the new surface: record ordering/attempts, childRun carve-out completeness, closed-list code-vs-spec parity, signature stripping, secret flow through child wires, resume with deleted child run. Every finding fixed with regression test or recorded as spec-stated residual risk.</li>
+<li><strong>Evidence:</strong> review report + fix diff.</li></ul></div>
+<div class="step"><h3>Step 7 — Publish + alignment</h3>
+<ul><li><strong>AC:</strong> SPEC.md updated (keys/, verbs, Draft 02 note); HTML regenerated; zenbin republished same slug; fetch-back bytes identical; final harness + suite green.</li>
+<li><strong>Evidence:</strong> byte comparison + command outputs.</li></ul></div>
+
+<h2>Taste / originality criteria (≥ 4)</h2>
+<ul>
+  <li>Draft 02 reads as one law applied twice more (co-signing symmetry), not three bolt-ons.</li>
+  <li>Zero new binding/gate syntax — <code>from</code> is §7 verbatim.</li>
+  <li>The self-verifying-approval harness check is the signature move.</li>
+  <li>No PKI cosplay; tiers stated honestly; runs stay diffable through nesting.</li>
+</ul>
+
+<h2>Constraints / non-goals</h2>
+<ul>
+  <li>Never renumber IDs. All changes additive (Draft-02 validator accepts all Draft-01 docs). Private keys never committed/printed. No PKI, no revocation infra, no loops (composition is acyclic across files), no parallel scheduler, runner never calls a model. Old example run r-269b010f: superseded by fresh pair (child file bytes change); repoint harness honestly.</li>
+</ul>
+
+<h2>Validation commands</h2>
+<p><code>node docs/blocks-protocol-check.mjs PROTOCOL.md</code> · <code>node --test 'cli/tests/*.test.js'</code> · <code>cli/bin/blocks validate workflows/*.workflow.json</code> · zenbin fetch-back byte compare.</p>
+
+<h2>Definition of done</h2>
+<ul><li>All 7 steps with evidence; harness ALL PASS incl. live-signature re-verification; suite green; both reviewer gates clear (taste/originality ≥ 4); committed dogfood run pair + key; PROTOCOL.md Draft 02 committed; published draft updated at zenbin with byte verification.</li></ul>
+
+<h2>Open questions — resolved assumptions</h2>
+<ul><li>Zenbin key: reuse existing (verified working). Claim grammar = [SYN-2]. Private keyfiles gitignored by convention + MUST NOT commit rule. Runs of protocol-1 workflows omit <code>protocol</code>. Standalone required-output failure persists no marker (exit 1); embedded child in same situation → parent node failed (terminal).</li></ul>
+</main>
+</body>
+</html>

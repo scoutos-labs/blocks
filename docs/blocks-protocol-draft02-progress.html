@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Progress — blocks-protocol-draft02</title>
+<style>
+  :root { --ink:#1a1d23; --muted:#6b7280; --line:#e5e7eb; --ok:#0f6b4e; --bg:#fafaf8; --card:#fff; }
+  body { font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:var(--bg); margin:0; padding:2rem 1rem; }
+  main { max-width:960px; margin:0 auto; }
+  h1 { font-size:1.5rem; } h2 { font-size:1.15rem; margin-top:2rem; border-bottom:1px solid var(--line); padding-bottom:.3rem; }
+  code { font-family:ui-monospace,Menlo,monospace; font-size:.85em; background:#eef0ee; padding:.1em .35em; border-radius:4px; }
+  table { border-collapse:collapse; width:100%; margin:1rem 0; background:var(--card); }
+  th, td { border:1px solid var(--line); padding:.45rem .65rem; text-align:left; vertical-align:top; }
+  th { background:#f3f4f1; }
+  .chip { display:inline-block; font-size:.75rem; font-weight:600; padding:.1rem .55rem; border-radius:999px; color:#fff; }
+  .planned{background:#6b7280}.inprogress{background:#1d4ed8}.pass{background:var(--ok)}
+  .meta { color:#6b7280; font-size:.85rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Progress — blocks-protocol-draft02</h1>
+<p class="meta">Companion to <a href="blocks-protocol-draft02-prd.html">the PRD</a>. Status: <span class="chip inprogress">in-progress</span></p>
+
+<h2>Step checklist</h2>
+<table>
+  <tr><th>Step</th><th>Status</th><th>Evidence</th><th>Repairs</th></tr>
+  <tr><td>1 — Harness extension (falsifiable)</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
+  <tr><td>2 — Validator + loader surface</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
+  <tr><td>3 — Runner (nesting + signed record)</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
+  <tr><td>4 — PROTOCOL.md Draft 02</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
+  <tr><td>5 — Dogfood example (release workflow, signed run)</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
+  <tr><td>6 — Adversarial review gate</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
+  <tr><td>7 — Publish + alignment</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
+</table>
+
+<h2>Agent choices</h2>
+<p>Planner: <code>Plan</code> (read-only). Plan + impl reviewers: <code>general-purpose</code> read-only critics.</p>
+
+<h2>Reviewer findings</h2>
+<p>Plan gate: pending.</p>
+
+<h2>Log</h2>
+<ul>
+  <li>2026-07-02T19:4xZ — begin; planner returned full Draft 02 design: co-signing symmetry, parent-covers-child grants, separate child runs, authenticate-before-contract, domain-separated canonical string, protocol field with teeth.</li>
+</ul>
+</main>
+</body>
+</html>
