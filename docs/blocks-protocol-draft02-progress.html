@@ -21,25 +21,26 @@
 <body>
 <main>
 <h1>Progress — blocks-protocol-draft02</h1>
-<p class="meta">Companion to <a href="blocks-protocol-draft02-prd.html">the PRD</a>. Status: <span class="chip inprogress">in-progress</span></p>
+<p class="meta">Companion to <a href="blocks-protocol-draft02-prd.html">the PRD</a>. Status: <span class="chip pass">complete</span> — Draft 02 published at <a href="https://zenbin.org/p/blocks-skill-protocol">zenbin.org/p/blocks-skill-protocol</a></p>
 
 <h2>Step checklist</h2>
 <table>
   <tr><th>Step</th><th>Status</th><th>Evidence</th><th>Repairs</th></tr>
-  <tr><td>1 — Harness extension (falsifiable)</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>2 — Validator + loader surface</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>3 — Runner (nesting + signed record)</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>4 — PROTOCOL.md Draft 02</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>5 — Dogfood example (release workflow, signed run)</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>6 — Adversarial review gate</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>7 — Publish + alignment</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
+  <tr><td>1 — Harness extension (falsifiable)</td><td><span class="chip pass">pass</span></td><td>15 new named failures against pre-Draft-02 state; old checks green</td><td>0</td></tr>
+  <tr><td>2 — Validator + loader surface</td><td><span class="chip pass">pass</span></td><td>oracle key, keys registry (d + unknown-member rejection), canon.js, outputs, workflow nodes, cross-file cycle paths, parent-covers-child grants, protocol field; 42/42</td><td>0</td></tr>
+  <tr><td>3 — Runner (nesting + signed record)</td><td><span class="chip pass">pass</span></td><td>recursive driveRun; child runs are ordinary run files; pause bubbling; terminal child failure; outputs with required/optional semantics; record --sign authenticate-before-contract (exit 3, no attempt burn); 14 new tests first-try green</td><td>0</td></tr>
+  <tr><td>4 — PROTOCOL.md Draft 02</td><td><span class="chip pass">pass</span></td><td>OUT-1..7, NST-1..11, SIG-1..8, VER-4/5, SEC-8/9, §18; amendments in place, no renumbering</td><td>0</td></tr>
+  <tr><td>5 — Dogfood example (release workflow, signed run)</td><td><span class="chip pass">pass</span></td><td>release.workflow nests changelog-from-git@2; live run: unsigned refusal exit 3 → k-tom-signed approval → RELEASE.md cut; happy pair + negative pair (invented hashes → judge 0.3/revise → cascade of skips) committed; harness re-verifies the committed signature from artifacts alone</td><td>1 (outputs added after first run)</td></tr>
+  <tr><td>6 — Adversarial review gate</td><td><span class="chip pass">pass</span></td><td>3 blockers found and repaired: [VER-4] unenforced for run docs; secret digests flowed back on resume (real [OUT-5] violation); mid-run workflow-edit crash → workflowHash drift refusal on resume+record; plus pause-time blockHash pinning, closed JWKs, narrowed OUT-4 catch, 10 spec nits; 5 new regression tests</td><td>1 full pass</td></tr>
+  <tr><td>7 — Publish + alignment</td><td><span class="chip pass">pass</span></td><td>SPEC.md + runner skill aligned; HTML regenerated; zenbin republished (bytes IDENTICAL); final: harness 72/72, tests 61/61, all 3 workflows validate</td><td>0</td></tr>
 </table>
 
 <h2>Agent choices</h2>
 <p>Planner: <code>Plan</code> (read-only). Plan + impl reviewers: <code>general-purpose</code> read-only critics.</p>
 
 <h2>Reviewer findings</h2>
-<p>Plan gate: pending.</p>
+<p><strong>Plan gate:</strong> NO BLOCKERS; suggestions adopted (blockHash in the canonical preimage; key discovery pinned to keys/&lt;id&gt;.private.json; step 3 split; honest DoS framing). Reviewer independently verified 3 code claims (grants source, Ed25519 determinism, attempts-before-validation).</p>
+<p><strong>Implementation gate:</strong> 3 blockers + 10 nits, all repaired (see step 6). Persona-A derivations: signed-record MATCH (one exit-class fix), grant coverage MATCH incl. transitive, outputs MATCH after the secrets fix. Independent re-verification of the committed approval signature from [SIG-3] alone: PASS. Scores: taste 4, originality 4.</p>
 
 <h2>Log</h2>
 <ul>

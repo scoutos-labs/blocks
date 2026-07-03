@@ -1,6 +1,6 @@
 # Blocks — Specification v1
 
-> Scope: this document is normative for this repository's implementation and layout. The interoperability protocol — what *any* conforming implementation must do — is specified in [PROTOCOL.md](PROTOCOL.md) (Draft 01), which prevails on questions of protocol behavior.
+> Scope: this document is normative for this repository's implementation and layout. The interoperability protocol — what *any* conforming implementation must do — is specified in [PROTOCOL.md](PROTOCOL.md) (Draft 02), which prevails on questions of protocol behavior. Draft 02 features — workflow `outputs`, `workflow` nodes (composition), signed approvals (`oracle.claims` + the `keys/` registry), and the `protocol` field — are specified there (§9.1, §9.2, §12.4) and only summarized here.
 
 Five words, used the same way everywhere: **block**, **wire**, **gate**, **run**, **grant**.
 
@@ -30,6 +30,8 @@ cli/
   src/                  # one module per concern (loader, validate, exec, ...)
   tests/                # node:test suites + fixtures
 workflows/              # saved workflow DAGs (*.workflow.json)
+keys/                   # approval-key registry: <id>.json public keys with claims
+                        # (<id>.private.json stays local — gitignored)
 runs/                   # live run-state files (gitignored)
 examples/runs/          # curated, committed run-states + artifacts
 SPEC.md                 # this document (normative)
@@ -225,9 +227,10 @@ One execution = one file: `runs/<workflow>-<runId>.run.json`.
 | `blocks plan <workflow> [--state f]` | Topo order / next pending node. |
 | `blocks exec <workflow> [--state f] [--out f] [--input k=v ...]` | Execute deterministic nodes up to the next fuzzy node or completion; create/update run-state. |
 | `blocks check-output <block> <json\|-> ` | Validate candidate fuzzy output against the block's outputs schema. |
-| `blocks record --state f --node id --output f` | Validate + append a fuzzy node's output to run-state. |
+| `blocks record --state f --node id --output f [--sign keyfile]` | Validate + append a fuzzy node's output to run-state; `--sign` adds an Ed25519 approval (required by `oracle.claims` blocks). |
 | `blocks link <block> [--check]` | Symlink a block into `.claude/skills/` so it loads as a live skill; `--check` verifies frontmatter uses only documented skill keys. |
 | `blocks new block <name> --kind <k>` | Scaffold a block directory. |
+| `blocks new key <id> --claims <a,b>` | Register an approval key (public into `keys/`, private gitignored). |
 
 Exit codes: `0` ok · `1` validation/contract failure · `2` usage error · `3` permission refusal.
 

@@ -6,3 +6,5 @@
 2026-07-03T02:16:43Z step-4-done PROTOCOL.md Draft 02: OUT/NST/SIG/VER/SEC additions; only dogfood-artifact checks remain red
 2026-07-03T02:23:10Z step-5-done dogfood: release workflow (nesting + signed approval) run live; happy pair + negative pair committed; harness 71/71 incl. live signature re-verification
 2026-07-03T02:41:28Z step-6-done adversarial review: 3 blockers (VER-4 runs unenforced; secret digest flowed back on resume; mid-run drift crash) + 10 nits — all repaired; 61/61 tests; harness 73/73
+2026-07-03T02:43:04Z step-7-done SPEC/skill aligned; Draft 02 republished, bytes identical
+2026-07-03T02:43:04Z complete blocks-protocol-draft02 — 129 requirements, 61 tests, harness 72/72, live signed dogfood committed

@@ -28,7 +28,13 @@ Vocabulary: block · wire · gate · run · grant (see SPEC.md).
       schema, worked example. Follow it exactly.
    b. Write your answer as a single JSON object to a file.
    c. Optionally pre-check: `blocks check-output <block-name> <file>`.
-   d. `blocks record --state <run.json> --node <id> --output <file>`.
+   d. `blocks record --state <run.json> --node <id> --output <file>` — and
+      when the pause says the node requires claims, add
+      `--sign keys/<your-key>.private.json`; every repair must be re-signed.
+      Never sign with a key that is not yours to use.
+   Note: if the pause is inside a child run (nested workflow), the printed
+   record command already targets the child run file — use it verbatim,
+   then resume the *parent* with its own `--state` path.
 4. **If record rejects the output**, it prints the exact violating fields.
    Repair the JSON — not the schema — and record again. You get **3 attempts
    total**; after the third failure the node is `failed` and the run stops.
