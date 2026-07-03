@@ -1273,14 +1273,19 @@ one node and gates the release on an authoritative approval:
   "in": { "candidate": "{{nodes.changelog.output.changelog}}" } }
 ```
 
-The committed pair `examples/runs/release-r-c969c5ba.run.json` (parent) and
-`examples/runs/changelog-from-git-r-211efc21.run.json` (child) is a real,
+The committed pair `examples/runs/release-r-c07ba399.run.json` (parent,
+Draft 03: `protocol: 3`, det hashes under the split preimage, the approval
+both signed and attested — `"capability": "release-judgment-v1"` beside
+`approval` — and the gate
+`#nodes.changelog.output.changelog > 0 and nodes.changelog.output.changelog contains 'Changelog'`
+exercising both Draft-03 constructs) and
+`examples/runs/changelog-from-git-r-a8e59d7d.run.json` (child) is a real,
 completed run: the parent's `changelog` node carries `childRun` and the
 child file's recomputable `workflowHash`; the `approve` node carries a
 verified approval —
 
 ```json
-"approval": { "keyId": "k-tom", "signature": "eOAGbG1c2vFdwfLr..." }
+"approval": { "keyId": "k-tom", "signature": "8xN0HE48fU4nd7q3..." }
 ```
 
 — which the consistency harness re-verifies on every run from the run
@@ -1290,7 +1295,13 @@ burned ([SIG-5]; the transcript is in the repository history). A second
 committed pair (`release-r-8e34a0e4` / `changelog-from-git-r-c792104c`)
 shows the negative path end-to-end (it predates the release workflow's
 `outputs` declaration, so its parent `workflowHash` mismatches the current
-file — drift audit again — and it carries no `output` object): the child's judge scored a draft with
+file — drift audit again — and it carries no `output` object). The
+Draft-02 happy pair (`release-r-c969c5ba` / `changelog-from-git-r-211efc21`)
+also remains committed as history: its det hashes recompute only under the
+Draft-02 preimage (hashes are draft-scoped, [RUN-2]), and its approval
+signature verifies against approve-release **v1** bytes in git history —
+v2 deliberately superseded it with the capability declaration. The
+negative-path pair records: the child's judge scored a draft with
 invented hashes 0.3/revise, the child's gated nodes skipped, the optional
 `changelog` output was omitted [OUT-4], the parent's approval gate
 evaluated false [OUT-7], and nothing was published.

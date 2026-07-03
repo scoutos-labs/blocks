@@ -1,0 +1,67 @@
+{
+  "workflow": "changelog-from-git",
+  "workflowFile": "workflows/changelog-from-git.workflow.json",
+  "workflowHash": "sha256:6edfa4006b694250f0fc9142b294d060ac82ed00ac0b8445c37226460704e8fa",
+  "runId": "r-a8e59d7d",
+  "startedAt": "2026-07-03T13:01:35.192Z",
+  "inputs": {
+    "range": "HEAD~6..HEAD"
+  },
+  "nodes": {
+    "log": {
+      "status": "done",
+      "blockHash": "sha256:b2151d6df62e7e7d54b61dc1fb983d7bb4cde6cad2f419e56f5d4cc6d7fc3c7c",
+      "attempts": 1,
+      "output": {
+        "text": "5312196 2026-07-02 draft02 step 6: repairs from adversarial review\n648db14 2026-07-02 draft02 complete: composition + signed approvals shipped and republished\nfa4d5fb 2026-07-03 docs: PRD + progress for blocks-protocol-draft03 (plan approved)\nf7838b4 2026-07-03 draft03 step 1: red — harness + test suite for capability, gate ops, hash split\n4d1af75 2026-07-03 draft03 steps 2-4: hash split, protocol plumbing, gate ops, attestation\n3d4f600 2026-07-03 draft03 step 5: PROTOCOL.md Draft 03 — capability, gate ops, draft-scoped hashes"
+      }
+    },
+    "draft": {
+      "status": "done",
+      "input": {
+        "text": "5312196 2026-07-02 draft02 step 6: repairs from adversarial review\n648db14 2026-07-02 draft02 complete: composition + signed approvals shipped and republished\nfa4d5fb 2026-07-03 docs: PRD + progress for blocks-protocol-draft03 (plan approved)\nf7838b4 2026-07-03 draft03 step 1: red — harness + test suite for capability, gate ops, hash split\n4d1af75 2026-07-03 draft03 steps 2-4: hash split, protocol plumbing, gate ops, attestation\n3d4f600 2026-07-03 draft03 step 5: PROTOCOL.md Draft 03 — capability, gate ops, draft-scoped hashes",
+        "style": "markdown changelog grouped by change type (Features / Fixes / Docs / Internal), terse, user-facing, keep short hashes"
+      },
+      "blockHash": "sha256:cc64f0d1d0f4e1e4daebd6a802759a316f86b33cc4cdd96b9bef0c9b18ccc4d2",
+      "attempts": 1,
+      "output": {
+        "summary": "## Internal\n- Draft 02 wrap-up: adversarial-review repairs (5312196) and the final ship with composition and signed approvals (648db14)\n- Draft 03, harness-first: PRD and plan approval (fa4d5fb), red harness and test suite for capability, gate operators, and the hash split (f7838b4), the implementation of all three (4d1af75), and the Draft 03 protocol text (3d4f600)"
+      }
+    },
+    "judge": {
+      "status": "done",
+      "input": {
+        "candidate": "## Internal\n- Draft 02 wrap-up: adversarial-review repairs (5312196) and the final ship with composition and signed approvals (648db14)\n- Draft 03, harness-first: PRD and plan approval (fa4d5fb), red harness and test suite for capability, gate operators, and the hash split (f7838b4), the implementation of all three (4d1af75), and the Draft 03 protocol text (3d4f600)",
+        "criteria": "Every entry traces to a commit in the log below — no invented changes. Grouped by change type. Terse and user-facing. Log:\n5312196 2026-07-02 draft02 step 6: repairs from adversarial review\n648db14 2026-07-02 draft02 complete: composition + signed approvals shipped and republished\nfa4d5fb 2026-07-03 docs: PRD + progress for blocks-protocol-draft03 (plan approved)\nf7838b4 2026-07-03 draft03 step 1: red — harness + test suite for capability, gate ops, hash split\n4d1af75 2026-07-03 draft03 steps 2-4: hash split, protocol plumbing, gate ops, attestation\n3d4f600 2026-07-03 draft03 step 5: PROTOCOL.md Draft 03 — capability, gate ops, draft-scoped hashes"
+      },
+      "blockHash": "sha256:4f22ff367f1bd822a72dbfe91b2b4519e5d4dbe7bdebe08c5c03a421a3cc2997",
+      "attempts": 1,
+      "output": {
+        "score": 0.9,
+        "verdict": "pass",
+        "reasons": "All six commits covered; every cited hash appears verbatim in the log; grouped and terse."
+      }
+    },
+    "render": {
+      "status": "done",
+      "blockHash": "sha256:41bf4841bd6f6106972efd0be1c1b1246933c7d6871db1c725cac634b3317608",
+      "attempts": 1,
+      "output": {
+        "text": "# Changelog\n\n_range: HEAD~6..HEAD — judged 0.9_\n\n## Internal\n- Draft 02 wrap-up: adversarial-review repairs (5312196) and the final ship with composition and signed approvals (648db14)\n- Draft 03, harness-first: PRD and plan approval (fa4d5fb), red harness and test suite for capability, gate operators, and the hash split (f7838b4), the implementation of all three (4d1af75), and the Draft 03 protocol text (3d4f600)\n"
+      }
+    },
+    "publish": {
+      "status": "done",
+      "blockHash": "sha256:6640e7b10fde73113fcf34912c6b3742e17e3a55a7eda3c1d5ffbb22a6260e7c",
+      "attempts": 1,
+      "output": {
+        "path": "CHANGELOG.md",
+        "bytes": 420
+      }
+    }
+  },
+  "protocol": 3,
+  "output": {
+    "changelog": "# Changelog\n\n_range: HEAD~6..HEAD — judged 0.9_\n\n## Internal\n- Draft 02 wrap-up: adversarial-review repairs (5312196) and the final ship with composition and signed approvals (648db14)\n- Draft 03, harness-first: PRD and plan approval (fa4d5fb), red harness and test suite for capability, gate operators, and the hash split (f7838b4), the implementation of all three (4d1af75), and the Draft 03 protocol text (3d4f600)\n"
+  }
+}

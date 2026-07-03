@@ -204,7 +204,7 @@ if (parent) {
   const wfNode = Object.values(parent.nodes).find((n) => n.childRun);
   check('parent run has a workflow node with childRun + workflowHash',
     !!wfNode && typeof wfNode.workflowHash === 'string' && wfNode.status === 'done');
-  check('parent run declares protocol 2', parent.protocol === 2);
+  check('parent run declares the stamping draft (>= 2)', parent.protocol >= 2);
   check('parent workflowHash recomputes from the release workflow file bytes',
     sha(readFileSync('workflows/release.workflow.json')) === parent.workflowHash);
   check('child workflowHash recomputes from child workflow file bytes',

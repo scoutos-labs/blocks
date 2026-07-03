@@ -1,14 +1,30 @@
 {
   "name": "approve-release",
-  "version": 1,
+  "version": 2,
   "kind": "fuzzy",
   "inputs": {
-    "candidate": { "type": "string", "description": "the artifact awaiting release approval" }
+    "candidate": {
+      "type": "string",
+      "description": "the artifact awaiting release approval"
+    }
   },
   "outputs": {
-    "approved": { "type": "boolean" },
-    "approver": { "type": "string", "description": "who is accountable for this decision" },
-    "reason": { "type": "string", "description": "the decisive consideration, one or two sentences" }
+    "approved": {
+      "type": "boolean"
+    },
+    "approver": {
+      "type": "string",
+      "description": "who is accountable for this decision"
+    },
+    "reason": {
+      "type": "string",
+      "description": "the decisive consideration, one or two sentences"
+    }
   },
-  "oracle": { "claims": ["release-approver"] }
+  "oracle": {
+    "claims": [
+      "release-approver"
+    ],
+    "capability": "release-judgment-v1"
+  }
 }

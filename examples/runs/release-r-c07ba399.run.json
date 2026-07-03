@@ -1,0 +1,53 @@
+{
+  "workflow": "release",
+  "workflowFile": "workflows/release.workflow.json",
+  "workflowHash": "sha256:341fd31c17bf3ed836f7c9929c7931f9fb9063c368b6ebdad34dbcea20740a2f",
+  "runId": "r-c07ba399",
+  "startedAt": "2026-07-03T13:01:35.190Z",
+  "inputs": {
+    "range": "HEAD~6..HEAD"
+  },
+  "nodes": {
+    "changelog": {
+      "status": "done",
+      "childRun": "runs/changelog-from-git-r-a8e59d7d.run.json",
+      "workflowHash": "sha256:6edfa4006b694250f0fc9142b294d060ac82ed00ac0b8445c37226460704e8fa",
+      "attempts": 1,
+      "output": {
+        "changelog": "# Changelog\n\n_range: HEAD~6..HEAD — judged 0.9_\n\n## Internal\n- Draft 02 wrap-up: adversarial-review repairs (5312196) and the final ship with composition and signed approvals (648db14)\n- Draft 03, harness-first: PRD and plan approval (fa4d5fb), red harness and test suite for capability, gate operators, and the hash split (f7838b4), the implementation of all three (4d1af75), and the Draft 03 protocol text (3d4f600)\n"
+      }
+    },
+    "approve": {
+      "status": "done",
+      "input": {
+        "candidate": "# Changelog\n\n_range: HEAD~6..HEAD — judged 0.9_\n\n## Internal\n- Draft 02 wrap-up: adversarial-review repairs (5312196) and the final ship with composition and signed approvals (648db14)\n- Draft 03, harness-first: PRD and plan approval (fa4d5fb), red harness and test suite for capability, gate operators, and the hash split (f7838b4), the implementation of all three (4d1af75), and the Draft 03 protocol text (3d4f600)\n"
+      },
+      "blockHash": "sha256:f6040447da534a73b75d7bea63ef4e79ed9459fc7f496af8570007a5decdc480",
+      "attempts": 1,
+      "output": {
+        "approved": true,
+        "approver": "k-tom",
+        "reason": "Six commits, six real hashes, judged 0.9 upstream; the Draft 03 changelog is accurate and safe to cut."
+      },
+      "approval": {
+        "keyId": "k-tom",
+        "signature": "8xN0HE48fU4nd7q3PLx53mACE-E-XY1vn_NDoc8-WPjAHUUh9s6_iZmHxqvQVtiOMKv-fzY0-Af2rRCRMTcpBw"
+      },
+      "capability": "release-judgment-v1"
+    },
+    "cut": {
+      "status": "done",
+      "blockHash": "sha256:6640e7b10fde73113fcf34912c6b3742e17e3a55a7eda3c1d5ffbb22a6260e7c",
+      "attempts": 1,
+      "output": {
+        "path": "RELEASE.md",
+        "bytes": 557
+      }
+    }
+  },
+  "protocol": 3,
+  "output": {
+    "changelog": "# Changelog\n\n_range: HEAD~6..HEAD — judged 0.9_\n\n## Internal\n- Draft 02 wrap-up: adversarial-review repairs (5312196) and the final ship with composition and signed approvals (648db14)\n- Draft 03, harness-first: PRD and plan approval (fa4d5fb), red harness and test suite for capability, gate operators, and the hash split (f7838b4), the implementation of all three (4d1af75), and the Draft 03 protocol text (3d4f600)\n",
+    "released": "RELEASE.md"
+  }
+}
