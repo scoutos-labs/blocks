@@ -21,25 +21,26 @@
 <body>
 <main>
 <h1>Progress — blocks-protocol-draft03</h1>
-<p class="meta">Companion to <a href="blocks-protocol-draft03-prd.html">the PRD</a>. Status: <span class="chip inprogress">in-progress</span></p>
+<p class="meta">Companion to <a href="blocks-protocol-draft03-prd.html">the PRD</a>. Status: <span class="chip pass">complete</span> — Draft 03 published at <a href="https://zenbin.org/p/blocks-skill-protocol">zenbin.org/p/blocks-skill-protocol</a></p>
 
 <h2>Step checklist</h2>
 <table>
   <tr><th>Step</th><th>Status</th><th>Evidence</th><th>Repairs</th></tr>
-  <tr><td>1 — Red (harness + tests first)</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>2 — Preimage + protocol plumbing</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>3 — Gate extension</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>4 — Capability attestation</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>5 — PROTOCOL.md Draft 03</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>6 — Dogfood refresh</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
-  <tr><td>7 — Adversarial gate + publish</td><td><span class="chip planned">planned</span></td><td>—</td><td>0</td></tr>
+  <tr><td>1 — Red (harness + tests first)</td><td><span class="chip pass">pass</span></td><td>13 failing tests + 19 failing harness checks named every missing construct; 61 existing green</td><td>0</td></tr>
+  <tr><td>2 — Preimage + protocol plumbing</td><td><span class="chip pass">pass</span></td><td>hashBlock kind branch; stamp 3 always; cross-draft refusal; 3 old-formula test expectations migrated (listed in commit)</td><td>0</td></tr>
+  <tr><td>3 — Gate extension</td><td><span class="chip pass">pass</span></td><td>contains + #ref in tokenizer/parser/eval; GAT-10 statics; VER-5 draft-3 detection; astral vector green</td><td>0</td></tr>
+  <tr><td>4 — Capability attestation</td><td><span class="chip pass">pass</span></td><td>--attest after blockHash check, before parse/auth/attempts; usage class, no burn; capability beside approval; pause conveys demand</td><td>0</td></tr>
+  <tr><td>5 — PROTOCOL.md Draft 03</td><td><span class="chip pass">pass</span></td><td>§12.5 CAP-1..4 (with asymmetry + no-SIG-binding rationale), GAT-8..10, RUN-2 split + draft-scoped sentence, VER-4 repeal explicit, §19; only 5 artifact checks left red</td><td>0</td></tr>
+  <tr><td>6 — Dogfood refresh</td><td><span class="chip pass">pass</span></td><td>approve-release v2 (claims+capability); release v2 protocol 3 with both new gate constructs; live run r-c07ba399: signed+attested approval; harness 91/91; old pairs byte-untouched</td><td>0</td></tr>
+  <tr><td>7 — Adversarial gate + publish</td><td><span class="chip pass">pass</span></td><td>ZERO behavioral defects (persona-A derivations all MATCH; live probes incl. child downgrade + recursive VER-5 all clean); 1 doc blocker + 7 nits repaired; 76/76; republished bytes IDENTICAL</td><td>1 doc pass</td></tr>
 </table>
 
 <h2>Agent choices</h2>
 <p>Planner: <code>Plan</code> (read-only). Plan + impl reviewers: <code>general-purpose</code> read-only critics.</p>
 
 <h2>Reviewer findings</h2>
-<p>Plan gate: pending.</p>
+<p><strong>Plan gate:</strong> NO BLOCKERS; 4 suggestions adopted (attest slot pinned; exit-2/3 asymmetry rationale in spec text; VER-4 repeal explicit; step-4 evidence named). All 3 spot-checks confirmed.</p>
+<p><strong>Implementation gate:</strong> zero behavioral defects — every derived ceremony order, gate semantic, preimage, stamp, and refusal confirmed against source or live probe (incl. independent [SIG-3] re-verification against v2 bytes AND the Draft-02 approval against v1 bytes from git history). 1 blocker: documentation contradiction cluster (App D stale preimage; SPEC.md unsynced) + 7 nits — all repaired. Taste 4, originality 4.</p>
 
 <h2>Log</h2>
 <ul>

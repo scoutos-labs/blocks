@@ -5,3 +5,5 @@
 2026-07-03T13:01:11Z step-5-done PROTOCOL.md Draft 03 text: §12.5 CAP, GAT-8..10, RUN-2 split, VER-4/5, §19; only 5 fresh-artifact checks red
 2026-07-03T13:03:37Z step-6-done dogfood: fresh release run r-c07ba399 (protocol 3, split preimages, both gate constructs live, signed+attested approval); harness 91/91; old pairs byte-untouched
 2026-07-03T13:17:34Z step-7a-done adversarial gate: ZERO behavioral defects (first draft to achieve it); 1 doc blocker (App D item 7 stale preimage + SPEC.md unsynced) + 7 nits — all repaired; 76/76
+2026-07-03T13:18:09Z step-7-done republished, bytes identical
+2026-07-03T13:18:09Z complete blocks-protocol-draft03 — 101 requirement IDs → 108 (CAP-1..4, GAT-8..10); 76 tests; harness 91→93 checks ALL PASS
