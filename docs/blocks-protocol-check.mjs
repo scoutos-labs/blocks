@@ -236,6 +236,8 @@ if (parent) {
       check('approval signature re-verifies from run document + registry via the spec formula', ok);
       check('signing key declares the required claim',
         JSON.parse(src(`${blockDir}/contract.json`)).oracle.claims.every((c) => key.claims.includes(c)));
+      check('the signature quoted in the spec is the committed one (no phantom examples)',
+        doc.includes(rec.approval.signature.slice(0, 16)));
     } catch (e) {
       check('approval signature re-verifies from run document + registry via the spec formula', false, e.message);
     }

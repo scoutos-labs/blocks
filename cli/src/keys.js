@@ -33,6 +33,11 @@ export function loadRegistryKey(root, keyId) {
   if (jwk && (jwk.d !== undefined)) {
     errors.push({ file, pointer: '/publicJwk/d', message: 'registry keys must not contain private material ("d")', hint: 'the registry is public keys only — keep private keys out of keys/' });
   }
+  for (const k of Object.keys(jwk ?? {})) {
+    if (!['kty', 'crv', 'x'].includes(k)) {
+      errors.push({ file, pointer: `/publicJwk/${k}`, message: `unknown publicJwk member "${k}"`, hint: 'registry JWKs are closed: kty, crv, x only' });
+    }
+  }
   if (!Array.isArray(doc.claims) || doc.claims.length === 0 || !doc.claims.every((c) => typeof c === 'string' && CLAIM_RE.test(c))) {
     errors.push({ file, pointer: '/claims', message: `"claims" must be a non-empty array of names matching ${CLAIM_RE}` });
   }

@@ -529,9 +529,11 @@ it.
 
 [NST-11] In the determinism check [RUN-8], `childRun` embeds run identity
 and is exempt from structural comparison exactly as `runId` and `startedAt`
-are; `workflowHash`, `status`, `attempts`, and `output` on the same record
-are not exempt, and a deterministic-only child's own `.nodes` MUST be
-structurally equal across parent runs.
+are — and the exemption applies recursively: every `childRun` field at any
+nesting depth is exempt, and nothing else is. `workflowHash`, `status`,
+`attempts`, and `output` on the same records are compared, and a
+deterministic-only descendant's own `.nodes` MUST be structurally equal
+across parent runs after the recursive `childRun` exemption.
 
 ## 10. Permissions and grants (normative)
 
@@ -715,7 +717,10 @@ implementation-defined; the information items are not.
 record operation, which MUST shape-validate it [SCH-6] against the block's
 declared outputs and MUST reject it, naming the violating fields, when it
 does not conform. A rejected answer never touches the run document's
-`output`.
+`output`. Record MUST also refuse, in the validation/contract-failure
+class, when the block's current hash differs from the `blockHash` recorded
+at pause time — the contract the oracle answered is the contract the run
+accepts.
 
 [RNR-10] A record operation MUST refuse to overwrite a `done` node, to
 record a `skipped` or `failed` node, or to record a node the run has not
@@ -743,7 +748,13 @@ instructions depend on the mapping.
 [RNR-14] **Resume.** Given a run document, a runner MUST continue from the
 first `pending` node in topological order, using recorded outputs for
 everything `done`, re-reading non-secret inputs from the document, and
-requiring secret inputs to be re-supplied [RUN-7].
+requiring secret inputs to be re-supplied [RUN-7] — a digest MUST never
+flow back into execution in a value's place. A runner MUST refuse to
+resume (or record into, [RNR-9]) a run whose `workflowHash` no longer
+matches the workflow file's bytes, in the validation/contract-failure
+class: a run's world is the workflow it started from, and mid-run edits
+end that world. The same check applies to child runs on re-entry
+[NST-10].
 
 [RNR-15] A runner MUST NOT invoke a language model. The oracle is outside
 the runner — that separation is what makes the runner's behavior
@@ -783,9 +794,10 @@ closed object whose `claims` is a non-empty array of claim names matching
 
 [SIG-2] The **key registry** is the workspace directory `keys/`. A
 registered key is a closed document `keys/<keyId>.json` containing `keyId`
-(matching [SYN-2] and the filename), `publicJwk` (an Ed25519 OKP JWK:
-`kty`, `crv`, `x`), and `claims` (as in [SIG-1]). A registry document
-containing private key material (`d`) is invalid — the registry
+(matching [SYN-2] and the filename), `publicJwk` (a closed Ed25519 OKP JWK:
+exactly `kty`, `crv`, `x`), and `claims` (as in [SIG-1]). A registry
+document containing private key material (`d`) or any other JWK member is
+invalid — the registry
 mechanically refuses to become a private-key store. Key distribution and
 revocation are out-of-band ([§17](#17-non-goals-normative)); deleting the
 registry file revokes, and version-control history is the audit log.
@@ -916,11 +928,13 @@ both numbers. Runners stamp new run documents with the workflow's
 effective protocol, omitting the field for protocol-1 workflows so their
 runs remain readable by Draft-01 tooling.
 
-[VER-5] A document that uses any construct introduced after Draft 1 —
-`outputs` (§9.1), a `workflow` node (§9.2), `oracle` demands via a
-protocol-2 workflow — MUST declare `protocol` ≥ the draft that introduced
-it. Validators MUST reject Draft-2 constructs under an implicit Draft-1
-claim; the check is static.
+[VER-5] A workflow document that uses any construct introduced after
+Draft 1 — `outputs` (§9.1) or a `workflow` node (§9.2) — MUST declare
+`protocol` ≥ the draft that introduced it. Validators MUST reject Draft-2
+constructs under an implicit Draft-1 claim; the check is static. (Block
+contracts carry no protocol field; a Draft-01 runner already rejects an
+`oracle` key via [BLK-5]'s closed-key rule, which is the intended
+failure.)
 
 ## 16. Security considerations (normative)
 
@@ -947,7 +961,9 @@ choosing the wrong declared branch — is real and is why grants exist.
 
 [SEC-5] Secret inputs are digested at rest [RUN-7]. Wiring a secret input
 into a fuzzy node persists its resolved value in that node's `input` record
-[RUN-5]; workflow authors SHOULD NOT do it, and validators MAY warn.
+[RUN-5], and wiring one into a workflow output (§9.1) persists it in the
+run's `output` object; workflow authors SHOULD NOT do either, and
+validators MAY warn.
 
 [SEC-6] Symlinked workspace roots: implementations that fence filesystem
 access SHOULD resolve real paths before spawning fenced children, or the
@@ -961,11 +977,15 @@ provide one.
 by whoever has workspace write access; the registry's trust root is review
 and version-control history, not the protocol. The mechanism authenticates
 *against* the registry, never *for* it. Equally: anyone with workspace
-write access can edit contracts or run documents around the signature
-requirement — both moves are audited, not enforced (a contract edit shifts
-`blockHash`; a run-document edit breaks post-hoc re-verification [SIG-7])
-— so a signed approval protects against unauthorized *submitters*, not
-against the workspace's own administrators.
+write access can edit contracts, workflow files, or run documents around
+the signature requirement — these moves are audited, not enforced (a
+contract edit between pause and record is refused via the pause-time
+`blockHash` [RNR-9]; a workflow edit mid-run is refused via `workflowHash`
+[RNR-14]; but an administrator who also rewrites the recorded hashes
+defeats both, detectably in history, while a run-document edit breaks
+post-hoc re-verification [SIG-7]) — so a signed approval protects against
+unauthorized *submitters*, not against the workspace's own
+administrators.
 
 [SEC-9] **Replay.** The [SIG-3] binding makes a captured approval valid
 only for the identical workflow bytes, run, node, input, and answer — a
@@ -1048,7 +1068,7 @@ and a fix hint. Quirk: `plan` without `--state` resolves workflow inputs
 (and so may demand `--input` for required inputs) as a side effect of
 sharing the execution path; this is not protocol behavior.
 
-The repository's test suite (`node --test 'cli/tests/*.test.js'`, 32 tests)
+The repository's test suite (`node --test 'cli/tests/*.test.js'`, 61 tests)
 is an informative, partial conformance suite for the Runner class; a
 cross-implementation suite is future work (§15).
 
@@ -1128,7 +1148,7 @@ child file's recomputable `workflowHash`; the `approve` node carries a
 verified approval —
 
 ```json
-"approval": { "keyId": "k-tom", "signature": "fvUxKEaBXzin..." }
+"approval": { "keyId": "k-tom", "signature": "eOAGbG1c2vFdwfLr..." }
 ```
 
 — which the consistency harness re-verifies on every run from the run
@@ -1136,7 +1156,9 @@ documents plus `keys/k-tom.json` alone, exactly per [SIG-3]/[SIG-7]. An
 unsigned submission to that node was refused with exit 3 and no attempt
 burned ([SIG-5]; the transcript is in the repository history). A second
 committed pair (`release-r-8e34a0e4` / `changelog-from-git-r-c792104c`)
-shows the negative path end-to-end: the child's judge scored a draft with
+shows the negative path end-to-end (it predates the release workflow's
+`outputs` declaration, so its parent `workflowHash` mismatches the current
+file — drift audit again — and it carries no `output` object): the child's judge scored a draft with
 invented hashes 0.3/revise, the child's gated nodes skipped, the optional
 `changelog` output was omitted [OUT-4], the parent's approval gate
 evaluated false [OUT-7], and nothing was published.

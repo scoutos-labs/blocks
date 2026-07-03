@@ -13,7 +13,7 @@ import { evalTemplate, parseTemplate, walkStrings } from './bindings.js';
 import { effectiveGlobs } from './globs.js';
 import { parseWhen, evalWhen } from './when.js';
 import { loadBlock } from './loader.js';
-import { formatErrors } from './validate.js';
+import { formatErrors, IMPLEMENTED_PROTOCOL } from './validate.js';
 import { canon } from './canon.js';
 import { loadRegistryKey, loadPrivateKeyFile } from './keys.js';
 
@@ -93,7 +93,22 @@ function newState(workflow, workflowFile, inputs, root) {
 }
 
 function loadState(file) {
-  try { return JSON.parse(readFileSync(file, 'utf8')); } catch (e) { fail(`cannot load run-state ${file}: ${e.message}`); }
+  let state;
+  try { state = JSON.parse(readFileSync(file, 'utf8')); } catch (e) { fail(`cannot load run-state ${file}: ${e.message}`); }
+  // PROTOCOL [VER-4]: reject run documents from drafts we do not implement
+  if ((state.protocol ?? 1) > IMPLEMENTED_PROTOCOL) {
+    fail(`run document declares protocol ${state.protocol}; this implementation speaks protocol ${IMPLEMENTED_PROTOCOL}`);
+  }
+  return state;
+}
+
+// PROTOCOL [RNR-14]: a run's world is the workflow bytes it started from —
+// refuse to resume across a mid-run workflow edit (workflowHash drift).
+function checkNoDrift(state, workflowFile, what = 'resume') {
+  const current = sha256(readFileSync(workflowFile));
+  if (current !== state.workflowHash) {
+    fail(`${workflowFile} has changed since run ${state.runId} started (workflowHash mismatch) — cannot ${what}; start a new run`);
+  }
 }
 
 function saveState(file, state) {
@@ -281,8 +296,11 @@ function resolveOutputs(workflow, state, liveInputs, statePath) {
     try {
       value = deepResolve(from, ctx);
     } catch (e) {
-      if (schema.required === false) continue; // gate cut the path: key omitted, never null
-      return { ok: false, detail: `required workflow output "${name}" cannot be resolved: ${e.message}` };
+      // only a cut path (skipped source, absent field) triggers optional
+      // omission; anything else is a real failure regardless of required
+      const cutPath = /no recorded output for node|output has no field/.test(e.message);
+      if (cutPath && schema.required === false) continue; // key omitted, never null
+      return { ok: false, detail: `${schema.required === false ? '' : 'required '}workflow output "${name}" cannot be resolved: ${e.message}` };
     }
     const errors = validateValue(value, schema, `/outputs/${name}`);
     if (errors.length) return { ok: false, detail: `workflow output "${name}": ${errors[0].message}` };
@@ -350,6 +368,7 @@ function driveRun(wfCtx, state, statePath, liveInputs, deps) {
           fail(`child run ${rec.childRun} for node "${id}" is missing — cannot resume it; start a new run`);
         }
         childState = loadState(childPath);
+        checkNoDrift(childState, childFile, `resume child run for node "${id}"`);
       } else {
         childState = newState(child.workflow, childFile, values, deps.root);
         mkdirSync(join(deps.root, 'runs'), { recursive: true });
@@ -435,6 +454,13 @@ export async function runVerb(verb, args, { root, loadValidated, flag, usage }) 
     state = loadState(stateFile);
     statePath = resolve(stateFile);
     if (state.workflow !== workflow.name) fail(`run-state is for workflow "${state.workflow}", not "${workflow.name}"`, 2);
+    checkNoDrift(state, file);
+    // PROTOCOL [RUN-7]/[RNR-14]: digests are one-way — secrets are re-supplied, never read back
+    for (const [key, schema] of Object.entries(workflow.inputs ?? {})) {
+      if (schema.secret === true && !kvFlags.some(([k]) => k === key)) {
+        fail(`secret input "${key}" must be re-supplied on resume: --input ${key}=<value> (secrets are digested at rest)`, 2);
+      }
+    }
   } else {
     const inputs = resolveInputs(workflow, kvFlags);
     state = newState(workflow, file, inputs, root);
@@ -516,13 +542,15 @@ function recordVerb(args, { root, flag, usage }) {
   if (rec.status === 'failed') fail(`node "${nodeId}" has failed in this run — a failed node is terminal; start a new run`, 2);
   if (rec.input === undefined) fail(`node "${nodeId}" has not been reached yet — run \`blocks exec --state ${stateFile}\` first`, 2);
 
-  // find the block via the workflow file recorded in state
+  // find the block via the workflow file recorded in state — and refuse a
+  // workflow that drifted since the run started (closes the pin-swap path)
   const wfFile = [
     state.workflowFile && resolve(root, state.workflowFile),
     join(root, 'workflows', `${state.workflow}.workflow.json`),
   ].filter(Boolean).find(existsSync);
   let block = null;
   if (wfFile) {
+    checkNoDrift(state, wfFile, 'record into this run');
     const wf = JSON.parse(readFileSync(wfFile, 'utf8'));
     const pin = wf.nodes.find((n) => n.id === nodeId)?.block;
     if (pin) {
@@ -531,9 +559,13 @@ function recordVerb(args, { root, flag, usage }) {
     }
   }
   if (!block) fail(`cannot resolve the block contract for node "${nodeId}" — is ${state.workflowFile ?? `workflows/${state.workflow}.workflow.json`} present?`);
+  // the block itself may not drift between pause and record ([RNR-9])
+  if (rec.blockHash && rec.blockHash !== hashBlock(block)) {
+    fail(`block for node "${nodeId}" has changed since the run paused (blockHash mismatch) — start a new run`);
+  }
 
   let candidate;
-  try { candidate = JSON.parse(readFileSync(outputFile, 'utf8')); } catch (e) { fail(`output file is not valid JSON: ${e.message}`); }
+  try { candidate = JSON.parse(readFileSync(outputFile, 'utf8')); } catch (e) { fail(`output file is not valid JSON: ${e.message}`, 2); }
 
   // --- authenticate before contract (PROTOCOL [SIG-5]): auth failures are
   // permission refusals and never count against the attempt budget ---

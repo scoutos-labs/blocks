@@ -242,3 +242,71 @@ test('voluntary signature on a claims-free fuzzy node is verified and recorded',
   blocks(['record', '--state', 'v.run.json', '--node', 'judge', '--output', 'j.json', '--sign', 'keys/k-vol.private.json'], { root });
   assert.equal(state(root, 'v.run.json').nodes.judge.approval.keyId, 'k-vol');
 });
+
+// ---------- review repairs: VER-4 runs, secret re-supply, drift refusal ----------
+
+test('a run document declaring a future protocol is rejected by exec and record', () => {
+  const root = freshRoot();
+  blocks(['exec', 'workflows/valid.workflow.json', '--out', 'v.run.json'], { root });
+  const s = state(root, 'v.run.json');
+  s.protocol = 99;
+  writeFileSync(join(root, 'v.run.json'), JSON.stringify(s, null, 2));
+  const r1 = blocks(['exec', 'workflows/valid.workflow.json', '--state', 'v.run.json'], { root, expectFail: true });
+  assert.ok(r1.stderr.includes('protocol 99') && r1.stderr.includes('protocol 2'), r1.stderr);
+  writeFileSync(join(root, 'a.json'), JSON.stringify({ score: 0.5, verdict: 'pass' }));
+  const r2 = blocks(['record', '--state', 'v.run.json', '--node', 'judge', '--output', 'a.json'], { root, expectFail: true });
+  assert.ok(r2.stderr.includes('protocol 99'), r2.stderr);
+});
+
+test('secret inputs must be re-supplied on resume; digests never flow back in', () => {
+  const root = freshRoot();
+  const wf = JSON.parse(readFileSync(join(root, 'workflows', 'valid.workflow.json'), 'utf8'));
+  wf.inputs.text.secret = true;
+  delete wf.inputs.text.default;
+  writeFileSync(join(root, 'workflows', 'valid.workflow.json'), JSON.stringify(wf));
+  blocks(['exec', 'workflows/valid.workflow.json', '--out', 's.run.json', '--input', 'text=hunter2 secret'], { root });
+  const r = blocks(['exec', 'workflows/valid.workflow.json', '--state', 's.run.json'], { root, expectFail: true });
+  assert.equal(r.code, 2);
+  assert.ok(r.stderr.includes('secret input "text" must be re-supplied'), r.stderr);
+  // with the secret re-supplied, the resume proceeds to the fuzzy pause
+  const ok = blocks(['exec', 'workflows/valid.workflow.json', '--state', 's.run.json', '--input', 'text=hunter2 secret'], { root });
+  assert.ok(ok.stdout.includes('paused at fuzzy node "judge"'), ok.stdout);
+});
+
+test('mid-run workflow edits are refused on resume and on record (workflowHash drift)', () => {
+  const root = freshRoot();
+  blocks(['exec', 'workflows/valid.workflow.json', '--out', 'd.run.json'], { root });
+  const p = join(root, 'workflows', 'valid.workflow.json');
+  const wf = JSON.parse(readFileSync(p, 'utf8'));
+  wf.notes = 'edited mid-run';
+  writeFileSync(p, JSON.stringify(wf));
+  const r1 = blocks(['exec', 'workflows/valid.workflow.json', '--state', 'd.run.json'], { root, expectFail: true });
+  assert.ok(r1.stderr.includes('workflowHash mismatch'), r1.stderr);
+  writeFileSync(join(root, 'a.json'), JSON.stringify({ score: 0.5, verdict: 'pass' }));
+  const r2 = blocks(['record', '--state', 'd.run.json', '--node', 'judge', '--output', 'a.json'], { root, expectFail: true });
+  assert.ok(r2.stderr.includes('workflowHash mismatch'), r2.stderr);
+});
+
+test('a block edited between pause and record is refused (blockHash drift)', () => {
+  const root = freshRoot();
+  blocks(['exec', 'workflows/valid.workflow.json', '--out', 'b.run.json'], { root });
+  const skill = join(root, 'blocks', 'fx-judge', 'SKILL.md');
+  writeFileSync(skill, readFileSync(skill, 'utf8') + '\nnow demanding different judgments\n');
+  writeFileSync(join(root, 'a.json'), JSON.stringify({ score: 0.5, verdict: 'pass' }));
+  const r = blocks(['record', '--state', 'b.run.json', '--node', 'judge', '--output', 'a.json'], { root, expectFail: true });
+  assert.ok(r.stderr.includes('blockHash mismatch'), r.stderr);
+});
+
+test('registry JWKs are closed: unknown members rejected', async () => {
+  const { loadRegistryKey } = await import('../src/keys.js');
+  const { generateKeyPairSync } = await import('node:crypto');
+  const root = freshRoot();
+  const { publicKey } = generateKeyPairSync('ed25519');
+  const jwk = publicKey.export({ format: 'jwk' });
+  jwk.kid = 'sneaky';
+  const { mkdirSync } = await import('node:fs');
+  mkdirSync(join(root, 'keys'), { recursive: true });
+  writeFileSync(join(root, 'keys', 'k-x.json'), JSON.stringify({ keyId: 'k-x', publicJwk: jwk, claims: ['a'] }));
+  const r = loadRegistryKey(root, 'k-x');
+  assert.ok(r.errors.some((e) => e.message.includes('unknown publicJwk member "kid"')));
+});
