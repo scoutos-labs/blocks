@@ -1,15 +1,24 @@
 # The Blocks Skill Protocol
 
-**Draft 01 · 2026-07-02 · status: DRAFT — expect breaking changes**
+**Draft 02 · 2026-07-02 · status: DRAFT — expect breaking changes · supersedes Draft 01**
 
 ---
 
 ## 0. Status of this document (informative)
 
-This is Draft 01 of the Blocks Skill Protocol. It is an interoperability
+This is Draft 02 of the Blocks Skill Protocol. It is an interoperability
 specification: a party who has never read the reference implementation should
 be able to build conforming blocks, workflows, runners, oracles, or composers
 from this document alone, and have them interoperate with everyone else's.
+
+Draft 02 supersedes Draft 01 in place and is a strict superset: every
+conforming Draft-01 document remains conforming, and all changes are
+additive — workflow composition (§9.1–§9.2), signed approvals (§12.4), and
+the `protocol` version field ([VER-4], [VER-5]).
+[§18](#18-changes-from-draft-01-informative) lists every change. One
+symmetry carries all of it: grants co-sign a block's capabilities (Draft
+01); a parent workflow co-signs an embedded child's grants (§9.2); an
+approval co-signs an oracle's judgment (§12.4).
 
 Draft status means exactly what it says. No stability is promised between
 drafts, there is no semantic-versioning pledge, and the strict unknown-key
@@ -196,8 +205,10 @@ body documents the exact procedure; it is descriptive, and the contract's
 `name` (equal to the block name), `version` (a positive integer), `kind`
 (`"deterministic"` or `"fuzzy"`), and OPTIONAL `inputs` and `outputs` (maps
 of field name [SYN-1] to field schema, §5) — plus, for deterministic blocks
-only, `exec` (REQUIRED) and `permissions` (REQUIRED). Unknown keys make the
-contract invalid.
+only, `exec` (REQUIRED) and `permissions` (REQUIRED), and, for fuzzy blocks
+only, OPTIONAL `oracle` (demands on the answering oracle,
+[§12.4](#124-signed-approvals-normative)). Unknown keys make the contract
+invalid.
 
 [BLK-6] A fuzzy block MUST NOT declare `exec` or `permissions`, and MUST
 declare at least one output field. The outputs schema is the contract that
@@ -233,10 +244,11 @@ MUST NOT contain `..` segments. For an argv block, `argv[0]` MUST be a
 member of its own `run` list.
 
 [BLK-12] Contracts are closed documents: `contract.json`, its `exec` object
-(keys `argv`, `capture`, `entry` only), and its `permissions` object (keys
-`run`, `read`, `write`, `network` only) reject unknown keys, and `capture`
-is valid only in the argv variant. Validators MUST treat violations as
-errors — the strictness is the extension policy [VER-3].
+(keys `argv`, `capture`, `entry` only), its `permissions` object (keys
+`run`, `read`, `write`, `network` only), and its `oracle` object (key
+`claims` only, [SIG-1]) reject unknown keys, and `capture` is valid only in
+the argv variant. Validators MUST treat violations as errors — the
+strictness is the extension policy [VER-3].
 
 [BLK-13] A deterministic block that accepts filesystem paths among its
 inputs MUST itself refuse a resolved path value that is absolute or escapes
@@ -369,17 +381,20 @@ A workflow is a single JSON file.
 integer), and a non-empty `nodes` array; it MAY contain `notes` (free
 text), `inputs` (a map of input name [SYN-1] to field schema, where
 `default` supplies a value when the invocation omits one and `secret` marks
-digest-on-persist inputs), and `grants` (§10).
+digest-on-persist inputs), `grants` (§10), `outputs` (§9.1), and `protocol`
+([VER-4]).
 
-[WFL-2] Each node MUST have a unique `id` [SYN-2] and a `block` pin [SYN-4]
-that resolves to a block in the library whose name and version match
-exactly; a pin to any other version of an existing block is an error naming
-the available versions.
+[WFL-2] Each node MUST have a unique `id` [SYN-2] and exactly one of: a
+`block` pin [SYN-4] that resolves to a block in the library, or a
+`workflow` pin (§9.2) that resolves to a workflow file — in both cases with
+name and version matching exactly; a pin to any other version is an error
+naming the available version.
 
-[WFL-3] Each node MAY have `in` (a map from the block's declared input names
-to wire templates or literal values), `when` (a gate, §8), `after` (an array
-of node ids establishing order-only dependencies), and `notes`. Every
-block input whose schema is required MUST be bound in `in`; binding an
+[WFL-3] Each node MAY have `in` (a map from the declared input names of its
+block — or of its embedded workflow — to wire templates or literal values),
+`when` (a gate, §8), `after` (an array of node ids establishing order-only
+dependencies), and `notes`. Every declared input that is required (and, for
+embedded workflows, has no `default`) MUST be bound in `in`; binding an
 undeclared input is an error.
 
 [WFL-4] The dependency edges of a workflow are the union of: the node refs
@@ -399,6 +414,124 @@ MUST treat violations as errors [VER-3].
 
 A workflow whose nodes are all fuzzy blocks is a prompt DAG; mixed
 workflows are the common case.
+
+### 9.1 Workflow outputs (normative)
+
+A workflow may declare what it returns — the missing half of the block
+interface, and what makes a workflow embeddable (§9.2). Functions get
+return values.
+
+```json
+"outputs": {
+  "changelog": { "from": "{{nodes.render.output.text}}", "type": "string", "required": false }
+}
+```
+
+[OUT-1] An output declaration is a closed object: `from` (REQUIRED — a wire
+template or literal value, §7) plus a schema-lite schema (§5) — `type`
+REQUIRED; `default` and `secret` are invalid here (they are input-only).
+Output names follow [SYN-1].
+
+[OUT-2] `from` follows the wire rules of §7 verbatim, with the declaration
+as the target: a whole-value wire's source type MUST equal the declared
+type [WIR-6], interpolation targets MUST be `string`, and unknown-typed
+sources [WIR-8] pass statically and are checked at resolution.
+
+[OUT-3] When a run completes, the runner MUST resolve each declaration
+against the run's recorded values, validate each resolved value against its
+schema [SCH-5], and write the result as a top-level `output` object on the
+run document. Node records are untouched ([RUN-6] survives).
+
+[OUT-4] When an output's source cannot be resolved because a gate cut its
+path (the source node is `skipped`, or a referenced field is absent): if
+the declaration has `required: false`, the key is **omitted** from `output`
+— never null; otherwise the run concludes in the validation/contract-failure
+outcome class with a message naming the output and the failed resolution,
+and no `output` object is written.
+
+[OUT-5] The `output` object is a deterministic derivation of `.nodes` and
+the run's inputs: re-invoking a completed run MUST reproduce it exactly.
+
+[OUT-6] Output declarations create no execution edges: a node referenced
+only by `outputs` still runs (or skips) on its own dependencies and gates.
+
+[OUT-7] The sanctioned pattern for consuming an *optional* output
+downstream is a gate on the output itself (`nodes.child.output.message !=
+''` — a missing ref makes the clause false [GAT-4] and the consumer
+skips); a data wire to a missing optional output is an execution error
+[WIR-8].
+
+### 9.2 Workflow composition (normative)
+
+A node may embed another workflow. Composition is the same co-signing law
+one level up: the parent vouches for everything the child may touch.
+
+```json
+{ "id": "changelog", "workflow": "changelog-from-git@2",
+  "in": { "range": "{{inputs.range}}" } }
+```
+
+[NST-1] A node MUST have exactly one of `block` or `workflow`. A `workflow`
+pin [SYN-4] resolves against `workflows/<name>.workflow.json` in the same
+workspace; the file's declared `version` MUST match the pin exactly.
+
+[NST-2] An embedded workflow's interface is its declared `inputs` (an input
+with a `default` is not required of the parent) and its declared `outputs`
+(§9.1, minus `from`). Wires and gates resolve against that interface
+exactly as against a block's contract ([WIR-5], [GAT-6]).
+
+[NST-3] The inclusion graph over workflow names MUST be acyclic. Validators
+MUST reject a cycle reporting the full inclusion path. Nesting is acyclic
+composition, not recursion.
+
+[NST-4] Embedded workflows are validated recursively: a workflow whose
+embedded child is invalid is itself invalid, and the child's errors are
+reported against the child's own file.
+
+[NST-5] A child's inputs come only from the parent's `in` bindings (plus
+the child's own defaults). Invocation-level inputs bind the root workflow
+only.
+
+[NST-6] **Grant coverage.** The parent MUST cover every grant of an
+embedded workflow: each child `run` grant MUST appear in the parent's
+`run` grants, and each child path grant MUST be covered [PRM-3] by some
+parent grant. Symmetrically, a child's grants count as declarations for
+the parent's [PRM-4] check. Consequence: the effective capability of every
+leaf node is unchanged by embedding, and the root workflow's `grants` is a
+complete statement of everything the whole tree may touch. Runtime
+intersection remains as defense in depth; validation makes it a no-op.
+
+[NST-7] One execution of an embedded workflow is an ordinary run document
+of its own (§11), stored separately. The parent node's record carries
+`childRun` (the child run document's workspace-relative path) and
+`workflowHash` (the hash [SYN-5] of the child workflow file's bytes) from
+the moment the child run is created.
+
+[NST-8] While the child run is incomplete the parent record stays
+`pending`. On child completion the parent record becomes `done` with
+`attempts: 1` and `output` = the child's resolved `output` object (copied,
+so the parent document stays self-contained for wires, gates, and diffs).
+On child failure — a fuzzy node exhausting its budget [RNR-11], or a
+required child output unresolvable [OUT-4] — the parent record becomes
+`failed` with a reason naming the child run, and is terminal [RNR-12].
+
+[NST-9] A pause at a fuzzy node inside a descendant run bubbles up: the
+runner conveys the pause information items of [RNR-8] with the *child* run
+document as the submission target — a child run is just a run, and record
+needs no nested addressing — plus the parent run's location.
+
+[NST-10] Resume recurses: a parent invocation reaching a `pending` workflow
+node with a `childRun` re-enters that child run under [RNR-14]. A child's
+live input values are re-resolved from parent state on every entry, so
+secrets that flowed through wires need no separate re-supply. A missing
+child run file is an invocation error; the parent record is not failed by
+it.
+
+[NST-11] In the determinism check [RUN-8], `childRun` embeds run identity
+and is exempt from structural comparison exactly as `runId` and `startedAt`
+are; `workflowHash`, `status`, `attempts`, and `output` on the same record
+are not exempt, and a deterministic-only child's own `.nodes` MUST be
+structurally equal across parent runs.
 
 ## 10. Permissions and grants (normative)
 
@@ -422,10 +555,11 @@ ends in `/**` and the grant starts with the declaration's prefix up to and
 including the `/`. (`triage/**` covers `triage/p1/latest.md`; it does not
 cover `triage2/x`.)
 
-[PRM-4] A grant that no block in the workflow declares is a validation
-error: for `run`, the binary MUST appear in some block's `run` list; for
-paths, some block's declared glob MUST cover the grant. Grants co-sign;
-they never expand.
+[PRM-4] A grant that nothing in the workflow declares is a validation
+error: for `run`, the binary MUST appear in some block's `run` list or
+some embedded workflow's `run` grants [NST-6]; for paths, some block's
+declared glob or embedded workflow's grant MUST cover the grant. Grants
+co-sign; they never expand.
 
 [PRM-5] An argv node whose `argv[0]` is not in the workflow's `run` grants
 is a validation error (the node could never execute).
@@ -465,7 +599,9 @@ One execution of a workflow persists as one run document.
 `workflowFile` (the workflow file's path relative to the workspace root),
 `workflowHash`, `runId` (an opaque unique string; the form `r-<8 hex>` is
 RECOMMENDED), `startedAt` [SYN-6], `inputs` (the resolved workflow inputs as
-persisted), and `nodes` (a map from node id to node record).
+persisted), and `nodes` (a map from node id to node record). It MAY carry
+`protocol` (stamped from the workflow, [VER-4]) and, once complete,
+`output` (§9.1).
 
 [RUN-2] `workflowHash` MUST be the hash [SYN-5] of the exact bytes of the
 workflow file. A block's hash (`blockHash` below) MUST be the hash of the
@@ -473,15 +609,17 @@ concatenation, in order, of the exact bytes of: `SKILL.md`, then
 `contract.json`, then — for entry blocks only — the entry script.
 
 [RUN-3] A node record's `status` MUST be one of `pending`, `done`,
-`skipped`, `failed`. In Draft 01 only a fuzzy node's exhausted attempt
-budget produces `failed` [RNR-11]; a deterministic node that cannot execute
-leaves its record `pending` [RNR-17].
+`skipped`, `failed`. Only a fuzzy node's exhausted attempt budget [RNR-11]
+or a failed embedded child run [NST-8] produces `failed`; a deterministic
+node that cannot execute leaves its record `pending` [RNR-17].
 
-[RUN-4] A `done` record MUST carry `blockHash`, `attempts` (see [RNR-11];
-always `1` for a deterministic node), and `output` (shape-valid against the
-block's outputs). A `skipped` record MUST carry a human-readable `reason`.
-A `failed` record MUST carry `reason` and, for fuzzy nodes, the final
-`attempts` count.
+[RUN-4] A `done` record MUST carry `blockHash` (or, for a workflow node,
+`workflowHash` [NST-7]), `attempts` (see [RNR-11]; always `1` for a
+deterministic or workflow node), and `output` (shape-valid against the
+block's outputs, or the child's resolved output object [NST-8]). A
+`skipped` record MUST carry a human-readable `reason`. A `failed` record
+MUST carry `reason` and, for fuzzy nodes, the final `attempts` count. A
+fuzzy record carrying a verified approval carries `approval` ([SIG-7]).
 
 [RUN-5] When a run reaches a fuzzy node, the runner MUST persist the node's
 resolved input values on the record as `input` before any oracle answers.
@@ -566,9 +704,12 @@ NOT delegate deterministic execution to an agent.
 [RNR-8] **The pause interface.** At a fuzzy node, the runner MUST persist
 the record per [RUN-5], then convey to the oracle at least: the node id;
 the block pin; where to read the block's `SKILL.md`; the resolved input
-(or that it is in the run document, which is authoritative); and the exact
-mechanism for submitting an answer. The presentation (text, API response,
-message) is implementation-defined; the information items are not.
+(or that it is in the run document, which is authoritative); the exact
+mechanism for submitting an answer; when the block demands claims
+([SIG-1]), that a signed submission is required; and, when the pause is
+inside a descendant run [NST-9], which run document is the submission
+target. The presentation (text, API response, message) is
+implementation-defined; the information items are not.
 
 [RNR-9] **Record.** An answer enters the run only through the runner's
 record operation, which MUST shape-validate it [SCH-6] against the block's
@@ -627,6 +768,82 @@ candidate answer against a block's outputs without touching any run
 (`check-output` in the reference implementation). Record [RNR-9] subsumes
 it; offering it does not relax record's obligations.
 
+### 12.4 Signed approvals (normative)
+
+Human-in-the-loop is native to the protocol — a human with a text editor is
+already a conforming oracle (§13). What this section adds is *authority*: a
+fuzzy block can demand that its answer be signed by a key carrying declared
+claims, making approvals non-repudiable and the approver accountable — and
+the mechanism is signer-agnostic: a key does not care whether a human or an
+agent holds it.
+
+[SIG-1] A fuzzy contract MAY declare `"oracle": { "claims": [...] }` — a
+closed object whose `claims` is a non-empty array of claim names matching
+`[a-z][a-z0-9-]*`. `oracle` on a deterministic block is invalid.
+
+[SIG-2] The **key registry** is the workspace directory `keys/`. A
+registered key is a closed document `keys/<keyId>.json` containing `keyId`
+(matching [SYN-2] and the filename), `publicJwk` (an Ed25519 OKP JWK:
+`kty`, `crv`, `x`), and `claims` (as in [SIG-1]). A registry document
+containing private key material (`d`) is invalid — the registry
+mechanically refuses to become a private-key store. Key distribution and
+revocation are out-of-band ([§17](#17-non-goals-normative)); deleting the
+registry file revokes, and version-control history is the audit log.
+
+[SIG-3] The **canonical approval string** is the domain tag followed by six
+fields, newline-joined:
+
+```
+blocks-approval-v2
+<workflowHash of the run being recorded into>
+<blockHash of the block being answered>
+<runId>
+<nodeId>
+<inputDigest>
+<answerDigest>
+```
+
+where the digests are hashes [SYN-5] of the UTF-8 canonical JSON of the
+node's recorded `input` and of the submitted answer. Canonical JSON:
+lexicographically sorted object keys, no insignificant whitespace,
+ECMAScript number formatting. The leading domain tag prevents cross-protocol
+signature reuse; binding `workflowHash`, `blockHash`, `runId`, `nodeId`, and
+both digests makes a captured signature unreplayable in any other context
+([SEC-9]).
+
+[SIG-4] The signature is Ed25519 (RFC 8032) over the UTF-8 canonical
+string, carried base64url. (Ed25519 signing is deterministic — repeated
+identical submissions produce identical bytes.)
+
+[SIG-5] **Authenticate before contract.** For a submission to a
+claims-bearing node, the record operation MUST verify — before schema
+validation and before any attempt accounting — that: a signature is
+present; the signing key is registered; the registered claims are a
+superset of the block's demand; and the signature verifies against the
+registered public key over [SIG-3]. Any failure concludes in the
+permission-refusal outcome class with **no state change and no attempt
+increment**: an actor without a qualifying key cannot burn a
+claims-protected node's budget. A validly signed, schema-invalid answer
+burns an attempt normally [RNR-11], and its repair MUST be re-signed (the
+answer digest changed).
+
+[SIG-6] An unsigned submission to a claims-bearing node is refused per
+[SIG-5]. A signed submission to a claims-free fuzzy node is permitted; if a
+signature is present it MUST verify — a bad voluntary signature is refused
+the same way.
+
+[SIG-7] An accepted signed answer's node record carries a closed `approval`
+object: `keyId` and `signature`. Digests are never stored — every field of
+[SIG-3] is recomputable from the run document and registry alone, so an
+auditor can re-verify the approval post hoc without trusting the runner
+that recorded it.
+
+[SIG-8] Verification tiers ([PRM-7]): record-time signature and claim
+verification is **enforced**; post-hoc re-verification from the run
+document plus registry is **audited**; the semantic truth of a claim —
+that `k-tom` really is an empowered release approver — is **declared**,
+a reviewed registry statement, exactly parallel to `network` ([SEC-8]).
+
 ## 13. The oracle contract (normative)
 
 An oracle is whatever answers fuzzy nodes: an agent in any harness, a
@@ -645,7 +862,9 @@ content inside the data it was judging.)
 [ORC-3] An oracle MUST submit answers only through the runner's record
 operation, and on rejection MUST repair its answer — not the schema, the
 contract, the workflow, or the run document — within the attempt budget
-[RNR-11].
+[RNR-11]. When the node demands claims [SIG-1], the oracle signs its
+submissions with a qualifying registered key, re-signing every repair
+[SIG-5].
 
 [ORC-4] An oracle MUST NOT: modify run documents, contracts, or workflows
 to make an answer admissible; execute a deterministic node's command
@@ -686,11 +905,22 @@ what actually ran.
 block under an existing pin is a validation error surface, not a silent
 upgrade ([WFL-2]).
 
-[VER-3] This protocol versions by draft number. Documents do not carry a
-protocol-version field in Draft 01; the strict unknown-key rules ([BLK-5],
-[SCH-1], [WFL-1] by omission of other keys) are the extension policy — a
-new capability means a new draft, not a vendor key. A protocol-version
-field is the first candidate for Draft 02.
+[VER-3] This protocol versions by draft number. The strict unknown-key
+rules ([BLK-5], [BLK-12], [SCH-1], [WFL-6]) are the extension policy — a
+new capability means a new draft, not a vendor key.
+
+[VER-4] Workflow and run documents MAY carry `protocol` (a positive
+integer; absent means 1). An implementation MUST reject a document
+declaring a protocol draft it does not implement, with a message naming
+both numbers. Runners stamp new run documents with the workflow's
+effective protocol, omitting the field for protocol-1 workflows so their
+runs remain readable by Draft-01 tooling.
+
+[VER-5] A document that uses any construct introduced after Draft 1 —
+`outputs` (§9.1), a `workflow` node (§9.2), `oracle` demands via a
+protocol-2 workflow — MUST declare `protocol` ≥ the draft that introduced
+it. Validators MUST reject Draft-2 constructs under an implicit Draft-1
+claim; the check is static.
 
 ## 16. Security considerations (normative)
 
@@ -727,14 +957,55 @@ fence itself misfires on symlinked components.
 isolation runs the runner inside their own sandbox; the protocol does not
 provide one.
 
+[SEC-8] **Registry trust.** Claims in `keys/<keyId>.json` are self-asserted
+by whoever has workspace write access; the registry's trust root is review
+and version-control history, not the protocol. The mechanism authenticates
+*against* the registry, never *for* it. Equally: anyone with workspace
+write access can edit contracts or run documents around the signature
+requirement — both moves are audited, not enforced (a contract edit shifts
+`blockHash`; a run-document edit breaks post-hoc re-verification [SIG-7])
+— so a signed approval protects against unauthorized *submitters*, not
+against the workspace's own administrators.
+
+[SEC-9] **Replay.** The [SIG-3] binding makes a captured approval valid
+only for the identical workflow bytes, run, node, input, and answer — a
+context in which [RNR-10] already forbids a second acceptance. There is no
+key expiry or revocation list; a compromised key is revoked by deleting
+its registry file, and the exposure window is auditable from history.
+
 ## 17. Non-goals (normative)
 
 The following are outside this protocol, deliberately, and a conforming
 implementation MUST NOT present them as protocol features: hosted servers,
 UIs, daemons, triggers, or schedules; loops, recursion, arithmetic, or
 dynamic fan-out in workflows (bounded per-node record attempts are not a
-loop); parallel node execution; version ranges or block registries;
-container sandboxing; and model invocation by the runner [RNR-15].
+loop, and workflow nesting is acyclic composition [NST-3], not recursion);
+parallel node execution; version ranges or block registries; container
+sandboxing; model invocation by the runner [RNR-15]; and any PKI — no
+certificate chains, key servers, expiry, or revocation infrastructure
+([SIG-2], [SEC-9]).
+
+## 18. Changes from Draft 01 (informative)
+
+All changes are additive; no Draft-01 semantics changed.
+
+- **Workflow outputs** (§9.1, [OUT-1..7]): typed, wired return values;
+  omitted-not-null optional outputs; deterministic top-level `output`.
+- **Workflow composition** (§9.2, [NST-1..11]): `workflow` nodes; acyclic
+  cross-file inclusion; parent-covers-child grant coverage; child runs as
+  ordinary run documents; pause bubbling; terminal child failure;
+  `childRun` determinism carve-out.
+- **Signed approvals** (§12.4, [SIG-1..8]): `oracle.claims` demands; the
+  `keys/` registry; the domain-separated canonical string;
+  authenticate-before-contract with no attempt burn on refusal; the
+  `approval` record; post-hoc re-verifiability.
+- **Protocol field** ([VER-4..5]): declared drafts with rejection teeth;
+  Draft-2 constructs require `protocol: 2`.
+- Amended in place (same IDs): [WFL-1..3], [WFL-6 by reference], [BLK-5],
+  [BLK-12], [PRM-4], [RUN-1], [RUN-3], [RUN-4], [RNR-8], [ORC-3], §17.
+- New security text: [SEC-8] registry trust and the
+  administrator-can-always-edit honesty note; [SEC-9] replay binding and
+  revocation-by-deletion.
 
 ---
 
@@ -753,9 +1024,10 @@ is useful:
 | `blocks plan <workflow> [--state f]` | topological order / next pending node [RNR-14] |
 | `blocks exec <workflow> [--state f] [--out f] [--input k=v]` | §12.2 execution |
 | `blocks check-output <block> <file\|->` | [RNR-16] optional pre-validation |
-| `blocks record --state f --node id --output f` | [RNR-9]–[RNR-11] record |
+| `blocks record --state f --node id --output f [--sign keyfile]` | [RNR-9]–[RNR-11] record; `--sign` per §12.4 |
 | `blocks link <block> [--check]` | skill installation (outside the protocol) |
 | `blocks new block <name> --kind <k>` | scaffolding (outside the protocol) |
+| `blocks new key <id> --claims <a,b>` | key-pair scaffolding: public into `keys/`, private gitignored (outside the protocol) |
 
 Exit codes follow [RNR-13]: `0 ok · 1 validation/contract failure · 2 usage
 error · 3 permission refusal`.
@@ -874,11 +1146,30 @@ false; strict scalar equality · [GAT-6] static non-number ordering ref is an
 error · [GAT-7] the grammar is closed.
 
 **Workflow (§9):**
-[WFL-1] document fields · [WFL-2] unique ids; exact pin resolution ·
-[WFL-3] node fields; required inputs bound; no undeclared bindings ·
-[WFL-4] edges = wires ∪ gate refs ∪ after; acyclic; cycles named ·
-[WFL-5] sequential topological execution · [WFL-6] workflow/node/grants
-objects closed.
+[WFL-1] document fields · [WFL-2] unique ids; exact pin resolution (block
+or workflow) · [WFL-3] node fields; required inputs bound; no undeclared
+bindings · [WFL-4] edges = wires ∪ gate refs ∪ after; acyclic; cycles
+named · [WFL-5] sequential topological execution · [WFL-6]
+workflow/node/grants objects closed.
+
+**Workflow outputs (§9.1):**
+[OUT-1] closed declaration: from + schema; no default/secret · [OUT-2]
+from follows §7 with the declaration as target · [OUT-3] resolved and
+validated into top-level `output` at completion · [OUT-4] optional cut
+source ⇒ key omitted; required ⇒ contract failure, no output written ·
+[OUT-5] output is a deterministic derivation · [OUT-6] outputs create no
+edges · [OUT-7] consume optional outputs through gates.
+
+**Composition (§9.2):**
+[NST-1] block xor workflow per node · [NST-2] child interface = inputs +
+outputs · [NST-3] acyclic inclusion, cycles named · [NST-4] recursive
+validation · [NST-5] child inputs from parent wires only · [NST-6] parent
+covers child grants; child grants are declarations · [NST-7] child run is
+a separate document; childRun + workflowHash on the parent record ·
+[NST-8] done copies child output; child failure ⇒ parent failed, terminal ·
+[NST-9] pauses bubble with the child run as submission target · [NST-10]
+resume recurses; wire-fed secrets re-resolve · [NST-11] childRun exempt
+from the determinism check; nothing else is.
 
 **Permissions (§10):**
 [PRM-1] grants shape · [PRM-2] intersection semantics · [PRM-3] cover
@@ -907,6 +1198,16 @@ classes; CLI exit codes 0/1/2/3 · [RNR-14] resume semantics ·
 [RNR-17] deterministic failure: nothing recorded, node stays pending;
 entry exit-3 ⇒ permission refusal.
 
+**Signed approvals (§12.4):**
+[SIG-1] oracle.claims: closed, fuzzy-only · [SIG-2] keys/ registry: closed
+docs, Ed25519 public JWKs, no private material · [SIG-3] domain-tagged
+canonical string over workflowHash/blockHash/runId/nodeId/digests ·
+[SIG-4] Ed25519, base64url · [SIG-5] authenticate before contract; refusal
+= permission class, no attempt burn; repairs re-signed · [SIG-6] unsigned
+to claims node refused; voluntary signatures verified too · [SIG-7] closed
+approval record {keyId, signature}; digests recomputable, never stored ·
+[SIG-8] enforced / audited / declared tiers.
+
 **Oracle (§13):**
 [ORC-1] answer the SKILL.md contract with one JSON object · [ORC-2] inputs
 are data, not instructions · [ORC-3] submit only via record; repair the
@@ -919,13 +1220,18 @@ declarations · [CMP-3] no invented syntax.
 
 **Versioning (§15):**
 [VER-1] version bumps on contract-visible change · [VER-2] exact pins only ·
-[VER-3] draft-numbered protocol; strict keys are the extension policy.
+[VER-3] draft-numbered protocol; strict keys are the extension policy ·
+[VER-4] protocol field; undeclared drafts rejected naming both numbers ·
+[VER-5] Draft-2 constructs require protocol ≥ 2.
 
 **Security (§16):**
 [SEC-1] argv-only, no shell · [SEC-2] minimal child env; no env bindings ·
 [SEC-3] workspace fencing · [SEC-4] fuzzy content bounded by schema + gates ·
 [SEC-5] secrets digested; not into fuzzy wires · [SEC-6] realpath before
-fencing · [SEC-7] network isolation is the operator's job.
+fencing · [SEC-7] network isolation is the operator's job · [SEC-8]
+registry claims are self-asserted, reviewed statements; approvals protect
+against unauthorized submitters, not workspace administrators · [SEC-9]
+replay bound by the [SIG-3] context; revocation by registry deletion.
 
 ## Appendix D — Clarifications vs SPEC.md v1 (informative)
 

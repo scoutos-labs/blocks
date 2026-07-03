@@ -3,3 +3,4 @@
 2026-07-03T02:01:51Z step-1-done harness extended: 15 new named failures on current state, old checks green
 2026-07-03T02:07:54Z step-2-done validator/loader surface: oracle key, keys registry (d-rejection), canon.js, outputs, workflow nodes, cross-file cycles, grant coverage, protocol field; 42/42 tests
 2026-07-03T02:12:19Z step-3-done runner: recursive driveRun, output resolution, signed record, new key; 56/56 tests
+2026-07-03T02:16:43Z step-4-done PROTOCOL.md Draft 02: OUT/NST/SIG/VER/SEC additions; only dogfood-artifact checks remain red
