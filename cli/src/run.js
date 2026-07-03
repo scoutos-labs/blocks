@@ -26,8 +26,13 @@ const sha256 = (...bufs) => {
   return `sha256:${h.digest('hex')}`;
 };
 
+// Draft 03 preimage split (PROTOCOL [RUN-2]): a deterministic block's prose is
+// descriptive [BLK-4], so its hash covers only the executable surface; a fuzzy
+// block's prose IS the contract, so it stays in.
 export function hashBlock(block) {
-  const parts = [readFileSync(join(block.dir, 'SKILL.md')), readFileSync(join(block.dir, 'contract.json'))];
+  const parts = block.kind === 'deterministic'
+    ? [readFileSync(join(block.dir, 'contract.json'))]
+    : [readFileSync(join(block.dir, 'SKILL.md')), readFileSync(join(block.dir, 'contract.json'))];
   if (block.exec?.entry) parts.push(readFileSync(join(block.dir, block.exec.entry)));
   return sha256(...parts);
 }
@@ -87,17 +92,24 @@ function newState(workflow, workflowFile, inputs, root) {
     inputs: persistedInputs(workflow, inputs),
     nodes: Object.fromEntries(workflow.nodes.map((n) => [n.id, { status: 'pending' }])),
   };
-  // runs of Draft 2 workflows carry the protocol; Draft 1 runs stay Draft-1 readable
-  if ((workflow.protocol ?? 1) >= 2) state.protocol = workflow.protocol;
+  // Every run this runner creates embodies Draft-03 run semantics (the
+  // blockHash preimages), so every run is stamped 3 regardless of the
+  // workflow's own protocol (PROTOCOL [VER-4], Draft 03).
+  state.protocol = Math.max(IMPLEMENTED_PROTOCOL, workflow.protocol ?? 1);
   return state;
 }
 
 function loadState(file) {
   let state;
   try { state = JSON.parse(readFileSync(file, 'utf8')); } catch (e) { fail(`cannot load run-state ${file}: ${e.message}`); }
-  // PROTOCOL [VER-4]: reject run documents from drafts we do not implement
+  // PROTOCOL [VER-4]: reject run documents from drafts we do not implement,
+  // and refuse to continue runs from earlier drafts — restamping would mint
+  // mixed-preimage documents nobody can audit honestly.
   if ((state.protocol ?? 1) > IMPLEMENTED_PROTOCOL) {
     fail(`run document declares protocol ${state.protocol}; this implementation speaks protocol ${IMPLEMENTED_PROTOCOL}`);
+  }
+  if ((state.protocol ?? 1) < IMPLEMENTED_PROTOCOL) {
+    fail(`run document declares protocol ${state.protocol ?? 1}; this runner writes protocol-${IMPLEMENTED_PROTOCOL} runs and cannot continue an earlier draft's run — start a new run`);
   }
   return state;
 }
@@ -412,7 +424,10 @@ function driveRun(wfCtx, state, statePath, liveInputs, deps) {
       if (block.oracle?.claims) {
         console.log(`  requires: an approval signed by a key with claims [${block.oracle.claims.join(', ')}] — add --sign <private-keyfile>`);
       }
-      console.log(`  then:  blocks record --state ${relative(deps.root, statePath)} --node ${id} --output <answer.json>${block.oracle?.claims ? ' --sign <keyfile>' : ''}`);
+      if (block.oracle?.capability) {
+        console.log(`  calibrated: this contract assumes capability "${block.oracle.capability}" — record requires --attest ${block.oracle.capability} (self-attested, PROTOCOL [CAP-2])`);
+      }
+      console.log(`  then:  blocks record --state ${relative(deps.root, statePath)} --node ${id} --output <answer.json>${block.oracle?.claims ? ' --sign <keyfile>' : ''}${block.oracle?.capability ? ` --attest ${block.oracle.capability}` : ''}`);
       console.log(`  state: ${relative(deps.root, statePath)}`);
       return { status: 'paused' };
     }
@@ -534,6 +549,7 @@ function recordVerb(args, { root, flag, usage }) {
   const nodeId = flag('--node') ?? usage('record needs --node <id>');
   const outputFile = flag('--output') ?? usage('record needs --output <file>');
   const signPath = flag('--sign');
+  const attest = flag('--attest');
   const state = loadState(stateFile);
   const rec = state.nodes?.[nodeId];
   if (!rec) fail(`run-state has no node "${nodeId}" (nodes: ${Object.keys(state.nodes ?? {}).join(', ')})`, 2);
@@ -562,6 +578,22 @@ function recordVerb(args, { root, flag, usage }) {
   // the block itself may not drift between pause and record ([RNR-9])
   if (rec.blockHash && rec.blockHash !== hashBlock(block)) {
     fail(`block for node "${nodeId}" has changed since the run paused (blockHash mismatch) — start a new run`);
+  }
+
+  // capability attestation ([CAP-2]): checked before parse, auth, and attempt
+  // accounting — a missing/mismatched attestation is an incomplete submission
+  // (usage class), not an authority failure; nothing verifies its truth.
+  const requiredCap = block.oracle?.capability;
+  if (requiredCap !== undefined || attest !== undefined) {
+    if (requiredCap !== undefined && attest === undefined) {
+      fail(`node "${nodeId}" is calibrated for capability "${requiredCap}" — self-attest with --attest ${requiredCap}`, 2);
+    }
+    if (!/^[a-z][a-z0-9-]*$/.test(attest ?? '')) {
+      fail(`--attest must be a capability name matching [a-z][a-z0-9-]*, got ${JSON.stringify(attest)}`, 2);
+    }
+    if (requiredCap !== undefined && attest !== requiredCap) {
+      fail(`attestation "${attest}" does not match the contract's declared capability "${requiredCap}"`, 2);
+    }
   }
 
   let candidate;
@@ -621,6 +653,7 @@ function recordVerb(args, { root, flag, usage }) {
   rec.output = candidate;
   rec.blockHash = hashBlock(block);
   if (approval) rec.approval = approval;
+  if (attest !== undefined) rec.capability = attest;
   saveState(stateFile, state);
   console.log(`✓ recorded${approval ? ` (signed by ${approval.keyId})` : ''} output for "${nodeId}" (attempt ${rec.attempts}) — continue with: blocks exec ${wfFile ? relative(root, wfFile) : '<workflow>'} --state ${stateFile}`);
 }

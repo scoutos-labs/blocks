@@ -162,7 +162,7 @@ test('a protocol newer than implemented is rejected naming both numbers', () => 
   future.protocol = 99;
   const { errors } = validateWorkflow(future, library, file);
   const e = errors.find((x) => x.pointer === '/protocol');
-  assert.ok(e && e.message.includes('99') && e.message.includes('2'), JSON.stringify(e));
+  assert.ok(e && e.message.includes('99') && e.message.includes('3'), JSON.stringify(e));
 });
 
 test('output declarations: type mismatch, input-only keys, missing from', () => {

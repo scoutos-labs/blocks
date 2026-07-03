@@ -25,7 +25,7 @@ usage: blocks <verb> [args]
   exec <workflow.json> [--state f] [--out f] [--input k=v]...
                                       run deterministic nodes, persist run-state
   check-output <block> <file|->       validate candidate fuzzy output against a block contract
-  record --state f --node id --output f [--sign keyfile]
+  record --state f --node id --output f [--sign keyfile] [--attest <capability>]
                                       validate + append a fuzzy node's output to run-state;
                                       --sign adds an Ed25519 approval (required by oracle.claims blocks)
   link <block> [--check]              symlink a block into .claude/skills/

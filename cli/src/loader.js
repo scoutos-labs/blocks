@@ -195,13 +195,19 @@ export function loadBlock(dir) {
     if (contract.oracle !== undefined) {
       const o = contract.oracle;
       if (o === null || typeof o !== 'object' || Array.isArray(o)) {
-        errors.push({ file: cf, pointer: '/oracle', message: '"oracle" must be an object', hint: '{"claims": ["release-approver"]}' });
+        errors.push({ file: cf, pointer: '/oracle', message: '"oracle" must be an object', hint: '{"claims": ["release-approver"], "capability": "reasoning-v1"}' });
       } else {
         for (const k of Object.keys(o)) {
-          if (k !== 'claims') errors.push({ file: cf, pointer: `/oracle/${k}`, message: `unknown oracle key "${k}"`, hint: 'allowed: claims' });
+          if (k !== 'claims' && k !== 'capability') errors.push({ file: cf, pointer: `/oracle/${k}`, message: `unknown oracle key "${k}"`, hint: 'allowed: claims, capability' });
         }
-        if (!Array.isArray(o.claims) || o.claims.length === 0 || !o.claims.every((c) => typeof c === 'string' && /^[a-z][a-z0-9-]*$/.test(c))) {
+        if (o.claims === undefined && o.capability === undefined) {
+          errors.push({ file: cf, pointer: '/oracle', message: '"oracle" must declare at least one of "claims" or "capability"' });
+        }
+        if (o.claims !== undefined && (!Array.isArray(o.claims) || o.claims.length === 0 || !o.claims.every((c) => typeof c === 'string' && /^[a-z][a-z0-9-]*$/.test(c)))) {
           errors.push({ file: cf, pointer: '/oracle/claims', message: '"claims" must be a non-empty array of claim names ([a-z][a-z0-9-]*)' });
+        }
+        if (o.capability !== undefined && (typeof o.capability !== 'string' || !/^[a-z][a-z0-9-]*$/.test(o.capability))) {
+          errors.push({ file: cf, pointer: '/oracle/capability', message: '"capability" must be a name matching [a-z][a-z0-9-]*', hint: 'e.g. "reasoning-v1"' });
         }
       }
     }

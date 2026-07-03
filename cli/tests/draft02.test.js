@@ -36,7 +36,7 @@ test('nested det-only workflow runs to completion; child outputs feed parent wir
   const { stdout } = blocks(['exec', 'workflows/parent.workflow.json', '--out', 'p.run.json'], { root });
   assert.ok(stdout.includes('run complete'), stdout);
   const parent = state(root, 'p.run.json');
-  assert.equal(parent.protocol, 2, 'run stamped with protocol 2');
+  assert.equal(parent.protocol, 3, 'run stamped with the runner draft (3) — see draft03');
   const sub = parent.nodes.sub;
   assert.equal(sub.status, 'done');
   assert.ok(sub.childRun.startsWith('runs/child-'), sub.childRun);
@@ -252,7 +252,7 @@ test('a run document declaring a future protocol is rejected by exec and record'
   s.protocol = 99;
   writeFileSync(join(root, 'v.run.json'), JSON.stringify(s, null, 2));
   const r1 = blocks(['exec', 'workflows/valid.workflow.json', '--state', 'v.run.json'], { root, expectFail: true });
-  assert.ok(r1.stderr.includes('protocol 99') && r1.stderr.includes('protocol 2'), r1.stderr);
+  assert.ok(r1.stderr.includes('protocol 99') && r1.stderr.includes('protocol 3'), r1.stderr);
   writeFileSync(join(root, 'a.json'), JSON.stringify({ score: 0.5, verdict: 'pass' }));
   const r2 = blocks(['record', '--state', 'v.run.json', '--node', 'judge', '--output', 'a.json'], { root, expectFail: true });
   assert.ok(r2.stderr.includes('protocol 99'), r2.stderr);

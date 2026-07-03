@@ -13,7 +13,7 @@ const PIN_RE = /^([a-z][a-z0-9-]*)@(\d+)$/;
 const PATH_GLOB_RE = /^(?!\/)(?!.*\.\.)[^\0]*$/;
 
 // The protocol draft this implementation speaks (PROTOCOL.md [VER-4]).
-export const IMPLEMENTED_PROTOCOL = 2;
+export const IMPLEMENTED_PROTOCOL = 3;
 
 // Output declarations embed schema-lite minus default/secret, plus `from`.
 const OUTPUT_DECL_KEYS = ['from', 'type', 'required', 'enum', 'pattern', 'minimum', 'maximum', 'items', 'properties', 'description'];
@@ -71,6 +71,7 @@ export function validateWorkflow(workflow, library, file, ctx = {}) {
   if (usesDraft2 && declaredProtocol < 2) {
     err('/protocol', 'workflow uses Draft 2 constructs (outputs or workflow nodes) but does not declare "protocol": 2', 'add "protocol": 2 (PROTOCOL [VER-5])');
   }
+  let usesDraft3Gates = false; // set while checking gates; judged after the node pass
 
   if (typeof workflow.name !== 'string' || !ID_RE.test(workflow.name)) {
     err('/name', `workflow "name" must match ${ID_RE}, got ${JSON.stringify(workflow.name)}`);
@@ -272,19 +273,36 @@ export function validateWorkflow(workflow, library, file, ctx = {}) {
         const ast = parseWhen(node.when);
         for (const clause of ast.clauses) {
           const src = refErrors(clause.ref, `${p}/when`, null, { interpolated: false });
-          if (src && clause.ordering && src.type !== 'number' && src.type !== 'unknown') {
+          if (clause.length || clause.op === 'contains') usesDraft3Gates = true;
+          if (clause.length) {
+            // [GAT-10]: # applies to string/array refs and yields a number
+            if (src && !['string', 'array', 'unknown'].includes(src.type)) {
+              err(`${p}/when`, `"#" needs a string or array ref; ${refText(clause.ref)} is ${src.type}`);
+            }
+          } else if (clause.op === 'contains') {
+            if (src && !['string', 'array', 'unknown'].includes(src.type)) {
+              err(`${p}/when`, `"contains" needs a string or array left operand; ${refText(clause.ref)} is ${src.type}`);
+            }
+            if (src?.type === 'string' && typeof clause.literal !== 'string') {
+              err(`${p}/when`, `substring "contains" needs a string literal; got ${JSON.stringify(clause.literal)}`);
+            }
+          } else if (clause.ordering && src && src.type !== 'number' && src.type !== 'unknown') {
             err(`${p}/when`, `ordering comparison needs a number ref; ${refText(clause.ref)} is ${src.type}`);
           }
           if (clause.ref.kind === 'node') edges.get(node.id)?.add(clause.ref.node);
         }
       } catch (e) {
-        err(`${p}/when`, `gate does not parse: ${e.message}`, "grammar: ref op literal [and|or ...] — e.g. nodes.judge.output.score >= 0.7 (SPEC §5)");
+        err(`${p}/when`, `gate does not parse: ${e.message}`, "grammar: [#]ref op literal [and|or ...] — e.g. nodes.judge.output.score >= 0.7 (SPEC §5)");
       }
     }
     for (const [j, dep] of (node.after ?? []).entries()) {
       if (!nodes.has(dep)) err(`${p}/after/${j}`, `"after" references unknown node "${dep}"`);
       else edges.get(node.id)?.add(dep);
     }
+  }
+
+  if (usesDraft3Gates && declaredProtocol < 3) {
+    err('/protocol', 'workflow uses Draft 3 gate constructs (contains or #) but does not declare "protocol": 3', 'add "protocol": 3 (PROTOCOL [VER-5])');
   }
 
   // --- pass 2.5: workflow output declarations (PROTOCOL §9.1) ---

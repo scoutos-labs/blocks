@@ -1,6 +1,6 @@
-// Gates: the deliberately tiny `when` grammar from SPEC.md §5.
-// expr = clause { ("and"|"or") clause } ; clause = ref op literal
-// Not an expression language, and it must never become one.
+// Gates: the deliberately tiny `when` grammar from SPEC.md §5 / PROTOCOL §8.
+// expr = clause { ("and"|"or") clause } ; clause = operand op literal ;
+// operand = ["#"] ref. Not an expression language, and it must never become one.
 
 import { parseRef, digPath } from './bindings.js';
 
@@ -15,6 +15,14 @@ function tokenize(text) {
     if (ws) { rest = rest.slice(ws[0].length); continue; }
     const op = OPS.find((o) => rest.startsWith(o));
     if (op) { tokens.push({ op }); rest = rest.slice(op.length); continue; }
+    if (rest[0] === '#') {
+      // the length modifier hugs its ref: "# ref" is a parse error (PROTOCOL [GAT-9])
+      const hugged = rest.slice(1).match(/^[a-zA-Z_][a-zA-Z0-9_.-]*/);
+      if (!hugged) throw new Error('"#" must be immediately followed by a ref (no whitespace)');
+      tokens.push({ ref: hugged[0], length: true });
+      rest = rest.slice(1 + hugged[0].length);
+      continue;
+    }
     const str = rest.match(/^'([^']*)'/);
     if (str) { tokens.push({ literal: str[1] }); rest = rest.slice(str[0].length); continue; }
     const num = rest.match(/^-?\d+(\.\d+)?/);
@@ -23,6 +31,7 @@ function tokenize(text) {
     if (word) {
       const w = word[0];
       if (w === 'and' || w === 'or') tokens.push({ join: w });
+      else if (w === 'contains') tokens.push({ op: 'contains' });
       else if (w === 'true' || w === 'false') tokens.push({ literal: w === 'true' });
       else tokens.push({ ref: w });
       rest = rest.slice(w.length);
@@ -45,7 +54,7 @@ export function parseWhen(text) {
     const ref = parseRef(refTok.ref);
     if (!ref) throw new Error(`invalid gate ref "${refTok.ref}" — use inputs.<key> or nodes.<id>.output.<field>`);
     const opTok = tokens[i++];
-    if (!opTok?.op) throw new Error(`expected comparison operator after "${refTok.ref}" (one of ${OPS.join(' ')})`);
+    if (!opTok?.op) throw new Error(`expected comparison operator after "${refTok.ref}" (one of ${OPS.join(' ')} contains)`);
     const litTok = tokens[i++];
     if (!litTok || litTok.literal === undefined) {
       throw new Error(`expected a literal (number, 'string', true, false) after "${opTok.op}"`);
@@ -53,7 +62,14 @@ export function parseWhen(text) {
     if (ORDERING.has(opTok.op) && typeof litTok.literal !== 'number') {
       throw new Error(`ordering comparison "${opTok.op}" requires a number literal`);
     }
-    clauses.push({ ref, op: opTok.op, literal: litTok.literal, ordering: ORDERING.has(opTok.op) });
+    if (opTok.op === 'contains' && refTok.length) {
+      throw new Error('"#ref contains ..." is invalid — the length modifier yields a number (PROTOCOL [GAT-10])');
+    }
+    clauses.push({
+      ref, op: opTok.op, literal: litTok.literal,
+      ordering: ORDERING.has(opTok.op),
+      length: refTok.length === true,
+    });
   };
   expectClause();
   while (i < tokens.length) {
@@ -79,6 +95,22 @@ export function evalWhen(ast, ctx) {
       const dug = digPath(output, clause.ref.path);
       if ('missing' in dug) return false;
       left = dug.value;
+    }
+    if (clause.length) {
+      // PROTOCOL [GAT-9]: strings measure in Unicode code points; arrays in
+      // elements; anything else makes the clause false.
+      if (typeof left === 'string') left = [...left].length;
+      else if (Array.isArray(left)) left = left.length;
+      else return false;
+    }
+    if (clause.op === 'contains') {
+      // PROTOCOL [GAT-8]: substring for strings (string literals only),
+      // strict scalar membership for arrays, false for every other shape.
+      if (typeof left === 'string') {
+        return typeof clause.literal === 'string' && left.includes(clause.literal);
+      }
+      if (Array.isArray(left)) return left.some((el) => el === clause.literal);
+      return false;
     }
     if (clause.ordering) {
       if (typeof left !== 'number') return false;
