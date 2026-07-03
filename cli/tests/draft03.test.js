@@ -238,3 +238,23 @@ test('pause conveys the required capability', () => {
   assert.ok(stdout.includes('fixture-judgment-v1'), stdout);
   assert.ok(stdout.includes('--attest'), stdout);
 });
+
+test('a hand-downgraded CHILD run is refused on parent resume (cross-draft, nested)', () => {
+  const root = freshRoot();
+  blocks(['exec', 'workflows/parent-f.workflow.json', '--out', 'pf.run.json'], { root });
+  const childPath = state(root, 'pf.run.json').nodes.sub.childRun;
+  const cs = state(root, childPath);
+  cs.protocol = 2;
+  writeFileSync(join(root, childPath), JSON.stringify(cs, null, 2));
+  const r = blocks(['exec', 'workflows/parent-f.workflow.json', '--state', 'pf.run.json'], { root, expectFail: true });
+  assert.ok(r.stderr.includes('protocol 2'), r.stderr);
+});
+
+test('bare flags (--attest/--sign with no value) are usage errors, not silent drops', () => {
+  const root = freshRoot();
+  blocks(['exec', 'workflows/valid.workflow.json', '--out', 'v.run.json'], { root });
+  writeFileSync(join(root, 'j.json'), JSON.stringify({ score: 0.9, verdict: 'pass' }));
+  const r = blocks(['record', '--state', 'v.run.json', '--node', 'judge', '--attest', '--output', 'j.json'], { root, expectFail: true });
+  assert.equal(r.code, 2);
+  assert.ok(r.stderr.includes('--attest needs a value'), r.stderr);
+});

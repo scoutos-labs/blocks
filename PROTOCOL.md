@@ -662,7 +662,8 @@ deterministic or workflow node), and `output` (shape-valid against the
 block's outputs, or the child's resolved output object [NST-8]). A
 `skipped` record MUST carry a human-readable `reason`. A `failed` record
 MUST carry `reason` and, for fuzzy nodes, the final `attempts` count. A
-fuzzy record carrying a verified approval carries `approval` ([SIG-7]).
+fuzzy record carrying a verified approval carries `approval` ([SIG-7]),
+and an attested one carries `capability` ([CAP-3]).
 
 [RUN-5] When a run reaches a fuzzy node, the runner MUST persist the node's
 resolved input values on the record as `input` before any oracle answers.
@@ -931,11 +932,14 @@ block that declares no capability is permitted (the string still follows
 it against, and the record says only that it was stated.
 
 [CAP-4] Tiers ([PRM-7]): presence-and-equality of the attestation is
-**enforced**; re-reading it from the run document is **audited**; its
-truth — that the answering oracle actually is the named grade — is
-**declared**, exactly parallel to `network` and registry claims [SEC-8].
-Implementations MUST NOT present attestation as model-identity
-verification.
+**enforced**; re-reading it from the run document is **audited** — with
+one honest caveat: a *voluntary* attestation ([CAP-3]) is bound by no hash
+or digest, so a post-hoc edit of that one field is undetectable; a
+declaring block's attestation is anchored through the signed `blockHash`
+to the contract that demanded it. The attestation's truth — that the
+answering oracle actually is the named grade — is **declared**, exactly
+parallel to `network` and registry claims [SEC-8]. Implementations MUST
+NOT present attestation as model-identity verification.
 
 Capability does not bind into the approval signature [SIG-3], and this is
 closed rather than deferred: for a declaring block the demand is already
@@ -1032,8 +1036,9 @@ upgrade, and drafts promise nothing else (§0).
 [VER-5] A workflow document that uses any construct introduced after
 Draft 1 — `outputs` (§9.1) or a `workflow` node (§9.2, both Draft 2), or
 a gate using `contains` or `#` (§8, Draft 3) — MUST declare `protocol` ≥
-the draft that introduced it. Validators MUST reject Draft-2
-constructs under an implicit Draft-1 claim; the check is static. (Block
+the draft that introduced it. Validators MUST reject any
+post-Draft-1 construct under an implicit earlier-draft claim; the check is
+static. (Block
 contracts carry no protocol field; a Draft-01 runner already rejects an
 `oracle` key via [BLK-5]'s closed-key rule, which is the intended
 failure.)
@@ -1404,7 +1409,7 @@ classes; CLI exit codes 0/1/2/3 · [RNR-14] resume semantics ·
 entry exit-3 ⇒ permission refusal.
 
 **Signed approvals (§12.4):**
-[SIG-1] oracle.claims: closed, fuzzy-only · [SIG-2] keys/ registry: closed
+[SIG-1] oracle object: claims and/or capability, closed, fuzzy-only · [SIG-2] keys/ registry: closed
 docs, Ed25519 public JWKs, no private material · [SIG-3] domain-tagged
 canonical string over workflowHash/blockHash/runId/nodeId/digests ·
 [SIG-4] Ed25519, base64url · [SIG-5] authenticate before contract; refusal
@@ -1469,8 +1474,10 @@ specified here.
 6. **Secrets on resume.** Digests are one-way, so resumed runs need secret
    values re-supplied; previously unwritten. Protocol: [RUN-7], [RNR-14].
 7. **Hash preimages.** SPEC names the inputs loosely. Protocol: [RUN-2] —
-   `workflowHash` over the file bytes; `blockHash` over SKILL.md ‖
-   contract.json ‖ entry script, in that order.
+   `workflowHash` over the file bytes; `blockHash` per kind since Draft 03:
+   fuzzy = SKILL.md ‖ contract.json, deterministic = contract.json ‖ entry
+   script (Draft 02 hashed SKILL.md into every block; hashes are
+   draft-scoped, so Draft-02 runs are read under the old formula).
 8. **Determinism scope.** SPEC's "byte-identical" claim is a property of
    one serializer. Protocol: [RUN-8] — structural equality is the MUST;
    byte identity is RECOMMENDED.

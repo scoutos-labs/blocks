@@ -44,6 +44,7 @@ function flag(name) {
   const i = args.indexOf(name);
   if (i === -1) return undefined;
   const v = args[i + 1];
+  if (v === undefined || v.startsWith('--')) usage(`${name} needs a value`);
   args.splice(i, 2);
   return v;
 }

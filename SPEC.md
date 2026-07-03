@@ -1,6 +1,6 @@
 # Blocks — Specification v1
 
-> Scope: this document is normative for this repository's implementation and layout. The interoperability protocol — what *any* conforming implementation must do — is specified in [PROTOCOL.md](PROTOCOL.md) (Draft 02), which prevails on questions of protocol behavior. Draft 02 features — workflow `outputs`, `workflow` nodes (composition), signed approvals (`oracle.claims` + the `keys/` registry), and the `protocol` field — are specified there (§9.1, §9.2, §12.4) and only summarized here.
+> Scope: this document is normative for this repository's implementation and layout. The interoperability protocol — what *any* conforming implementation must do — is specified in [PROTOCOL.md](PROTOCOL.md) (Draft 03), which prevails on questions of protocol behavior. Draft 02–03 features — workflow `outputs`, `workflow` nodes (composition), signed approvals (`oracle.claims` + the `keys/` registry), capability attestation (`oracle.capability` + `--attest`), the gate `contains` operator and `#` length modifier, and the `protocol` field — are specified there (§8, §9.1, §9.2, §12.4, §12.5) and only summarized here.
 
 Five words, used the same way everywhere: **block**, **wire**, **gate**, **run**, **grant**.
 
@@ -195,7 +195,7 @@ One execution = one file: `runs/<workflow>-<runId>.run.json`.
 ```
 
 - `status` ∈ `pending | done | skipped | failed`.
-- `blockHash` = sha256 over the block's `SKILL.md` + `contract.json` + entry script, recorded at execution time for drift audit.
+- `blockHash` = sha256 per kind (PROTOCOL [RUN-2], Draft 03): fuzzy blocks hash `SKILL.md` + `contract.json` (the prose is the contract); deterministic blocks hash `contract.json` + entry script (the prose is descriptive). Recorded at execution time for drift audit; hashes are draft-scoped.
 - Node records carry **no timestamps** — `runId` and `startedAt` live at the top level only, so the entire `.nodes` object is diffable.
 - For a fuzzy node, the resolved input values are persisted on the node record (`"input"`) so the agent and auditors see exactly what the oracle was asked. Do not wire `secret` inputs into fuzzy nodes.
 - **Determinism check:** two runs of the same workflow with the same inputs must produce byte-identical `.nodes` objects for all *deterministic* nodes (fuzzy outputs may legitimately vary; a det-only workflow must diff clean across its entire `.nodes`). `runId` and `startedAt` are the only fields allowed to differ.

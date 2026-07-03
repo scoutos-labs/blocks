@@ -31,7 +31,9 @@ Vocabulary: block · wire · gate · run · grant (see SPEC.md).
    d. `blocks record --state <run.json> --node <id> --output <file>` — and
       when the pause says the node requires claims, add
       `--sign keys/<your-key>.private.json`; every repair must be re-signed.
-      Never sign with a key that is not yours to use.
+      Never sign with a key that is not yours to use. When the pause names
+      a calibrated capability, add `--attest <that capability>` — and only
+      attest to a grade you genuinely are; nothing checks it but you.
    Note: if the pause is inside a child run (nested workflow), the printed
    record command already targets the child run file — use it verbatim,
    then resume the *parent* with its own `--state` path.
