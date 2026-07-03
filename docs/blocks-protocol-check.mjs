@@ -244,5 +244,46 @@ if (parent) {
   }
 }
 
+// ============================ Draft 03 checks ================================
+
+check('Draft 03 banner present', /Draft 03/.test(doc) && /2026-07-03/.test(doc));
+check('§19 Changes from Draft 02 exists', doc.includes('## 19. Changes from Draft 02'));
+{
+  const n = new Set([...doc.matchAll(/\[CAP-(\d+)\]/g)].map((m) => m[1])).size;
+  check('[CAP-*] requirements present (>= 4)', n >= 4, `${n}`);
+}
+check('[GAT-8..10] present', ['GAT-8', 'GAT-9', 'GAT-10'].every((id) => doc.includes(`[${id}]`)));
+for (const f of ['capability', '--attest', 'contains']) {
+  check(`Draft 03 construct \`${f}\` specified`, doc.includes(`\`${f}\``));
+}
+check('length modifier `#` specified', doc.includes('`#`') || doc.includes('`#ref`'));
+check('gate op `contains` implemented', src('cli/src/when.js').includes("'contains'"));
+check('length modifier implemented in when.js', src('cli/src/when.js').includes("'#'"));
+check('code-point length semantics stated', /code point/i.test(doc));
+check('draft-scoped hash sentence present', /draft-scoped/i.test(doc));
+check('IMPLEMENTED_PROTOCOL is 3 and doc says protocol 3',
+  src('cli/src/validate.js').includes('IMPLEMENTED_PROTOCOL = 3') && doc.includes('protocol` ≥ 3'));
+check('record supports --attest', src('cli/src/run.js').includes("'--attest'"));
+
+// per-kind preimage recomputes against the fresh Draft-03 dogfood pair
+if (parent) {
+  check('fresh parent run declares protocol 3', parent.protocol === 3);
+  const wfNode3 = Object.values(parent.nodes).find((n) => n.childRun);
+  const childBase = wfNode3 && `examples/runs/${wfNode3.childRun.split('/').pop()}`;
+  if (childBase && existsSync(childBase)) {
+    const child = JSON.parse(src(childBase));
+    check('det argv preimage (contract.json only) reproduces child log node',
+      child.nodes.log && sha(readFileSync('blocks/git-log/contract.json')) === child.nodes.log.blockHash);
+    check('det entry preimage (contract.json ‖ entry) reproduces child publish node',
+      child.nodes.publish && sha(readFileSync('blocks/write-file/contract.json'), readFileSync('blocks/write-file/run.mjs')) === child.nodes.publish.blockHash);
+  } else {
+    check('fresh child run committed for preimage recompute', false, childBase ?? 'none');
+  }
+  const attested = Object.values(parent.nodes).find((n) => n.capability);
+  check('approval node carries attested capability', !!attested && attested.capability === JSON.parse(src('blocks/approve-release/contract.json')).oracle.capability);
+  check('release gate uses both new constructs',
+    (() => { const g = JSON.parse(src('workflows/release.workflow.json')).nodes.find((n) => n.id === 'approve').when; return g.includes('#') && g.includes('contains'); })());
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
