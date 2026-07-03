@@ -1,17 +1,24 @@
-// Runs: plan / exec / record / check-output (SPEC §6–§8).
+// Runs: plan / exec / record / check-output (SPEC §6–§8, PROTOCOL §11–§12).
 // The CLI is the runtime for deterministic nodes; the agent is the driver,
 // and the oracle for fuzzy nodes — `record` is the only door its answers fit through.
+// Draft 02: workflows nest (child runs are ordinary run files) and fuzzy answers
+// can be required to carry an Ed25519 approval signed by a registered key.
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync, realpathSync } from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomUUID, sign, verify, createPrivateKey, createPublicKey } from 'node:crypto';
 import { join, resolve, relative, isAbsolute } from 'node:path';
-import { validateShape } from './schema.js';
+import { validateShape, validateValue } from './schema.js';
 import { evalTemplate, parseTemplate, walkStrings } from './bindings.js';
 import { effectiveGlobs } from './globs.js';
 import { parseWhen, evalWhen } from './when.js';
 import { loadBlock } from './loader.js';
 import { formatErrors } from './validate.js';
+import { canon } from './canon.js';
+import { loadRegistryKey, loadPrivateKeyFile } from './keys.js';
+
+// Domain separation for approval signatures (PROTOCOL §12.4 [SIG-3]).
+export const APPROVAL_PREFIX = 'blocks-approval-v2';
 
 const sha256 = (...bufs) => {
   const h = createHash('sha256');
@@ -59,7 +66,7 @@ function resolveInputs(workflow, kvFlags) {
   return values;
 }
 
-// Secrets: stored in run-state as digests only (SPEC §7).
+// Secrets: stored in run-state as digests only (SPEC §7, PROTOCOL [RUN-7]).
 function persistedInputs(workflow, inputs) {
   const out = {};
   for (const [key, value] of Object.entries(inputs)) {
@@ -71,7 +78,7 @@ function persistedInputs(workflow, inputs) {
 // --- run-state --------------------------------------------------------------
 
 function newState(workflow, workflowFile, inputs, root) {
-  return {
+  const state = {
     workflow: workflow.name,
     workflowFile: relative(root, resolve(workflowFile)),
     workflowHash: sha256(readFileSync(workflowFile)),
@@ -80,6 +87,9 @@ function newState(workflow, workflowFile, inputs, root) {
     inputs: persistedInputs(workflow, inputs),
     nodes: Object.fromEntries(workflow.nodes.map((n) => [n.id, { status: 'pending' }])),
   };
+  // runs of Draft 2 workflows carry the protocol; Draft 1 runs stay Draft-1 readable
+  if ((workflow.protocol ?? 1) >= 2) state.protocol = workflow.protocol;
+  return state;
 }
 
 function loadState(file) {
@@ -257,6 +267,148 @@ function captureOutput(block, stdout, node) {
   return output;
 }
 
+// --- workflow outputs (PROTOCOL §9.1) ---------------------------------------
+
+// Returns { ok: true } or { ok: false, detail }. Deterministic derivation of
+// state.output from .nodes — recomputable on every complete invocation.
+function resolveOutputs(workflow, state, liveInputs, statePath) {
+  if (!workflow.outputs) return { ok: true };
+  const ctx = nodeCtx(state, liveInputs);
+  const out = {};
+  for (const [name, decl] of Object.entries(workflow.outputs)) {
+    const { from, ...schema } = decl;
+    let value;
+    try {
+      value = deepResolve(from, ctx);
+    } catch (e) {
+      if (schema.required === false) continue; // gate cut the path: key omitted, never null
+      return { ok: false, detail: `required workflow output "${name}" cannot be resolved: ${e.message}` };
+    }
+    const errors = validateValue(value, schema, `/outputs/${name}`);
+    if (errors.length) return { ok: false, detail: `workflow output "${name}": ${errors[0].message}` };
+    out[name] = value;
+  }
+  state.output = out;
+  saveState(statePath, state);
+  return { ok: true };
+}
+
+// --- the drive loop (PROTOCOL §12.2, recursive for workflow nodes) ----------
+
+function pseudoBlockFor(pin, childWf) {
+  const inputs = Object.fromEntries(Object.entries(childWf.inputs ?? {})
+    .map(([k, s]) => [k, s.default !== undefined ? { ...s, required: false } : s]));
+  const outputs = Object.fromEntries(Object.entries(childWf.outputs ?? {})
+    .map(([k, decl]) => { const { from, ...schema } = decl; return [k, schema]; }));
+  const [name, version] = pin.split('@');
+  return { name, version: Number(version), kind: 'workflow', inputs, outputs };
+}
+
+// Returns { status: 'complete' | 'paused' | 'failed' | 'output-failure', detail? }.
+function driveRun(wfCtx, state, statePath, liveInputs, deps) {
+  const { workflow, lib } = wfCtx;
+  const byId = new Map(workflow.nodes.map((n) => [n.id, n]));
+
+  for (const id of wfCtx.order) {
+    const rec = state.nodes[id];
+    if (rec.status === 'done' || rec.status === 'skipped') continue;
+    if (rec.status === 'failed') {
+      return { status: 'failed', detail: `node "${id}" failed in run ${state.runId} — a failed node is terminal; start a new run` };
+    }
+    const node = byId.get(id);
+    const ctx = nodeCtx(state, liveInputs);
+
+    // skip propagation: any data dependency skipped → this node skips (PROTOCOL [RNR-6])
+    const skippedDep = [...dataDeps(node)].find((d) => state.nodes[d]?.status === 'skipped');
+    if (skippedDep) {
+      rec.status = 'skipped';
+      rec.reason = `upstream node "${skippedDep}" was skipped`;
+      saveState(statePath, state);
+      console.log(`↷ ${id} skipped (upstream "${skippedDep}" skipped)`);
+      continue;
+    }
+    if (node.when !== undefined && !evalWhen(parseWhen(node.when), ctx)) {
+      rec.status = 'skipped';
+      rec.reason = `gate false: ${node.when}`;
+      saveState(statePath, state);
+      console.log(`↷ ${id} skipped (gate false: ${node.when})`);
+      continue;
+    }
+
+    // --- embedded workflow node (PROTOCOL §9.2) ---
+    if (node.workflow !== undefined) {
+      const childName = node.workflow.split('@')[0];
+      const childFile = join(deps.root, 'workflows', `${childName}.workflow.json`);
+      const child = deps.loadValidated(childFile);
+      const pseudo = pseudoBlockFor(node.workflow, child.workflow);
+      const values = resolveNodeInputs(node, pseudo, ctx);
+
+      let childState, childPath;
+      if (rec.childRun) {
+        childPath = resolve(deps.root, rec.childRun);
+        if (!existsSync(childPath)) {
+          fail(`child run ${rec.childRun} for node "${id}" is missing — cannot resume it; start a new run`);
+        }
+        childState = loadState(childPath);
+      } else {
+        childState = newState(child.workflow, childFile, values, deps.root);
+        mkdirSync(join(deps.root, 'runs'), { recursive: true });
+        childPath = join(deps.root, 'runs', `${child.workflow.name}-${childState.runId}.run.json`);
+        rec.childRun = relative(deps.root, childPath);
+        rec.workflowHash = childState.workflowHash;
+        saveState(statePath, state);
+      }
+
+      // child live inputs are re-resolved from parent state on every drive —
+      // secrets that flowed through wires need no separate re-supply ceremony
+      const res = driveRun(child, childState, childPath, values, deps);
+      if (res.status === 'paused') {
+        console.log(`  ↳ paused inside child run of node "${id}" — parent state: ${relative(deps.root, statePath)}`);
+        return res;
+      }
+      if (res.status === 'failed' || res.status === 'output-failure') {
+        rec.status = 'failed';
+        rec.reason = `child run ${rec.childRun} failed: ${res.detail}`;
+        saveState(statePath, state);
+        console.error(`✗ ${id} failed (${node.workflow}) — ${res.detail}`);
+        return { status: 'failed', detail: rec.reason };
+      }
+      rec.status = 'done';
+      rec.attempts = 1;
+      rec.output = childState.output ?? {};
+      saveState(statePath, state);
+      console.log(`✓ ${id} done (${node.workflow} → ${rec.childRun})`);
+      continue;
+    }
+
+    const block = lib.get(node.block);
+    const values = resolveNodeInputs(node, block, ctx);
+    if (block.kind === 'fuzzy') {
+      rec.input = values;
+      rec.blockHash = hashBlock(block);
+      saveState(statePath, state);
+      console.log(`⏸ paused at fuzzy node "${id}" (${node.block})`);
+      console.log(`  contract: ${relative(deps.root, block.dir)}/SKILL.md`);
+      console.log(`  input: ${JSON.stringify(values).slice(0, 400)}`);
+      if (block.oracle?.claims) {
+        console.log(`  requires: an approval signed by a key with claims [${block.oracle.claims.join(', ')}] — add --sign <private-keyfile>`);
+      }
+      console.log(`  then:  blocks record --state ${relative(deps.root, statePath)} --node ${id} --output <answer.json>${block.oracle?.claims ? ' --sign <keyfile>' : ''}`);
+      console.log(`  state: ${relative(deps.root, statePath)}`);
+      return { status: 'paused' };
+    }
+
+    const output = execDeterministic(node, block, values, workflow, deps.root);
+    state.nodes[id] = { status: 'done', blockHash: hashBlock(block), attempts: 1, output };
+    saveState(statePath, state);
+    console.log(`✓ ${id} done (${node.block})`);
+  }
+
+  const outs = resolveOutputs(workflow, state, liveInputs, statePath);
+  if (!outs.ok) return { status: 'output-failure', detail: outs.detail };
+  return { status: 'complete' };
+}
+
 // --- verbs -------------------------------------------------------------------
 
 export async function runVerb(verb, args, { root, loadValidated, flag, usage }) {
@@ -274,13 +426,14 @@ export async function runVerb(verb, args, { root, loadValidated, flag, usage }) 
     args.splice(i, 2);
   }
   const file = args[0] ?? usage(`${verb} needs a workflow file`);
-  const { workflow, lib, order } = loadValidated(file);
+  const wfCtx = loadValidated(file);
+  const { workflow, lib, order } = wfCtx;
 
   let state;
   let statePath;
   if (stateFile) {
     state = loadState(stateFile);
-    statePath = stateFile;
+    statePath = resolve(stateFile);
     if (state.workflow !== workflow.name) fail(`run-state is for workflow "${state.workflow}", not "${workflow.name}"`, 2);
   } else {
     const inputs = resolveInputs(workflow, kvFlags);
@@ -302,64 +455,32 @@ export async function runVerb(verb, args, { root, loadValidated, flag, usage }) 
     let next = null;
     for (const id of order) {
       const status = state.nodes[id]?.status ?? 'pending';
-      const block = lib.get(byId.get(id).block);
-      if (!next && status === 'pending') next = { id, block };
-      console.log(`  ${status === 'done' ? '✓' : status === 'skipped' ? '↷' : status === 'failed' ? '✗' : '·'} ${id}  ${byId.get(id).block} [${block.kind === 'fuzzy' ? '~fuzzy' : 'det'}] ${status}`);
+      const node = byId.get(id);
+      const pin = node.block ?? node.workflow;
+      const block = node.block ? lib.get(node.block) : null;
+      const kind = node.workflow ? 'wf' : block.kind === 'fuzzy' ? '~fuzzy' : 'det';
+      if (!next && status === 'pending') next = { id, node, block };
+      console.log(`  ${status === 'done' ? '✓' : status === 'skipped' ? '↷' : status === 'failed' ? '✗' : '·'} ${id}  ${pin} [${kind}] ${status}`);
     }
     if (next) {
-      console.log(`next: ${next.id} (${next.block.kind})${next.block.kind === 'fuzzy' ? ` — read ${relative(root, next.block.dir)}/SKILL.md, produce output JSON, then: blocks record --state ${statePath} --node ${next.id} --output <file>` : ''}`);
+      const kind = next.node.workflow ? 'workflow' : next.block.kind;
+      console.log(`next: ${next.id} (${kind})${kind === 'fuzzy' ? ` — read ${relative(root, next.block.dir)}/SKILL.md, produce output JSON, then: blocks record --state ${statePath} --node ${next.id} --output <file>` : ''}`);
     } else {
       console.log('next: nothing pending — run complete');
     }
     return;
   }
 
-  // exec: drive deterministic nodes until a fuzzy node needs the oracle.
-  for (const id of order) {
-    const rec = state.nodes[id];
-    if (rec.status === 'done' || rec.status === 'skipped') continue;
-    if (rec.status === 'failed') fail(`node "${id}" already failed in this run — start a new run`);
-    const node = byId.get(id);
-    const block = lib.get(node.block);
-    const ctx = nodeCtx(state, liveInputs);
-
-    // skip propagation: any data dependency skipped → this node skips (SPEC §5)
-    const skippedDep = [...dataDeps(node)].find((d) => state.nodes[d]?.status === 'skipped');
-    if (skippedDep) {
-      rec.status = 'skipped';
-      rec.reason = `upstream node "${skippedDep}" was skipped`;
-      saveState(statePath, state);
-      console.log(`↷ ${id} skipped (upstream "${skippedDep}" skipped)`);
-      continue;
-    }
-    if (node.when !== undefined && !evalWhen(parseWhen(node.when), ctx)) {
-      rec.status = 'skipped';
-      rec.reason = `gate false: ${node.when}`;
-      saveState(statePath, state);
-      console.log(`↷ ${id} skipped (gate false: ${node.when})`);
-      continue;
-    }
-
-    const values = resolveNodeInputs(node, block, ctx);
-    if (block.kind === 'fuzzy') {
-      rec.input = values;
-      rec.blockHash = hashBlock(block);
-      saveState(statePath, state);
-      console.log(`⏸ paused at fuzzy node "${id}" (${node.block})`);
-      console.log(`  contract: ${relative(root, block.dir)}/SKILL.md`);
-      console.log(`  input: ${JSON.stringify(values).slice(0, 400)}`);
-      console.log(`  then:  blocks record --state ${statePath} --node ${id} --output <answer.json>`);
-      console.log(`  state: ${statePath}`);
-      return;
-    }
-
-    const output = execDeterministic(node, block, values, workflow, root);
-    state.nodes[id] = { status: 'done', blockHash: hashBlock(block), attempts: 1, output };
+  const res = driveRun(wfCtx, state, statePath, liveInputs, { root, loadValidated });
+  if (res.status === 'complete') {
     saveState(statePath, state);
-    console.log(`✓ ${id} done (${node.block})`);
+    console.log(`run complete → ${relative(process.cwd(), statePath)}`);
+  } else if (res.status === 'failed') {
+    fail(res.detail);
+  } else if (res.status === 'output-failure') {
+    fail(res.detail); // nothing recorded; deterministic re-failure until the workflow is fixed
   }
-  saveState(statePath, state);
-  console.log(`run complete → ${statePath}`);
+  // paused: messages already printed, exit 0 — the run legitimately awaits its oracle
 }
 
 export async function checkOutputVerb(args, { root, usage }) {
@@ -380,12 +501,13 @@ export async function checkOutputVerb(args, { root, usage }) {
   console.log(`✓ valid output for ${block.name}@${block.version}`);
 }
 
-const MAX_ATTEMPTS = 3; // 1 initial + 2 repairs (SPEC §6)
+const MAX_ATTEMPTS = 3; // 1 initial + 2 repairs (SPEC §6, PROTOCOL [RNR-11])
 
 function recordVerb(args, { root, flag, usage }) {
   const stateFile = flag('--state') ?? usage('record needs --state <run.json>');
   const nodeId = flag('--node') ?? usage('record needs --node <id>');
   const outputFile = flag('--output') ?? usage('record needs --output <file>');
+  const signPath = flag('--sign');
   const state = loadState(stateFile);
   const rec = state.nodes?.[nodeId];
   if (!rec) fail(`run-state has no node "${nodeId}" (nodes: ${Object.keys(state.nodes ?? {}).join(', ')})`, 2);
@@ -399,23 +521,56 @@ function recordVerb(args, { root, flag, usage }) {
     state.workflowFile && resolve(root, state.workflowFile),
     join(root, 'workflows', `${state.workflow}.workflow.json`),
   ].filter(Boolean).find(existsSync);
-  let outputsSchema = null;
-  let blockDirForHash = null;
+  let block = null;
   if (wfFile) {
     const wf = JSON.parse(readFileSync(wfFile, 'utf8'));
     const pin = wf.nodes.find((n) => n.id === nodeId)?.block;
     if (pin) {
-      const dir = join(root, 'blocks', pin.split('@')[0]);
-      const { block } = loadBlock(dir);
-      if (block) { outputsSchema = block.outputs; blockDirForHash = block; }
+      const { block: loaded } = loadBlock(join(root, 'blocks', pin.split('@')[0]));
+      if (loaded) block = loaded;
     }
   }
-  if (!outputsSchema) fail(`cannot resolve the block contract for node "${nodeId}" — is workflows/${state.workflow}.workflow.json present?`);
+  if (!block) fail(`cannot resolve the block contract for node "${nodeId}" — is ${state.workflowFile ?? `workflows/${state.workflow}.workflow.json`} present?`);
 
   let candidate;
   try { candidate = JSON.parse(readFileSync(outputFile, 'utf8')); } catch (e) { fail(`output file is not valid JSON: ${e.message}`); }
+
+  // --- authenticate before contract (PROTOCOL [SIG-5]): auth failures are
+  // permission refusals and never count against the attempt budget ---
+  let approval = null;
+  const required = block.oracle?.claims;
+  if (required || signPath) {
+    if (!signPath) {
+      refuse(`node "${nodeId}" requires an approval signed by a key with claims [${required.join(', ')}] — pass --sign <private-keyfile>`);
+    }
+    const { key: priv, errors: privErr } = loadPrivateKeyFile(signPath);
+    if (!priv) { console.error(formatErrors(privErr)); process.exit(3); }
+    const { key: reg, errors: regErr } = loadRegistryKey(root, priv.keyId);
+    if (!reg) { console.error(formatErrors(regErr)); process.exit(3); }
+    if (required && !required.every((c) => reg.claims.includes(c))) {
+      refuse(`key "${priv.keyId}" carries claims [${reg.claims.join(', ')}] but node "${nodeId}" requires [${required.join(', ')}]`);
+    }
+    const canonical = [
+      APPROVAL_PREFIX,
+      state.workflowHash,
+      hashBlock(block),
+      state.runId,
+      nodeId,
+      sha256(Buffer.from(canon(rec.input), 'utf8')),
+      sha256(Buffer.from(canon(candidate), 'utf8')),
+    ].join('\n');
+    const signature = sign(null, Buffer.from(canonical, 'utf8'),
+      createPrivateKey({ key: priv.privateJwk, format: 'jwk' })).toString('base64url');
+    const ok = verify(null, Buffer.from(canonical, 'utf8'),
+      createPublicKey({ key: reg.publicJwk, format: 'jwk' }), Buffer.from(signature, 'base64url'));
+    if (!ok) {
+      refuse(`signature by "${priv.keyId}" does not verify against the registered public key keys/${priv.keyId}.json`);
+    }
+    approval = { keyId: priv.keyId, signature };
+  }
+
   rec.attempts = (rec.attempts ?? 0) + 1;
-  const errors = validateShape(candidate, outputsSchema, '');
+  const errors = validateShape(candidate, block.outputs, '');
   if (errors.length) {
     if (rec.attempts >= MAX_ATTEMPTS) {
       rec.status = 'failed';
@@ -426,13 +581,14 @@ function recordVerb(args, { root, flag, usage }) {
       process.exit(1);
     }
     saveState(stateFile, state);
-    console.error(`✗ attempt ${rec.attempts}/${MAX_ATTEMPTS}: output violates the contract — repair and record again:`);
+    console.error(`✗ attempt ${rec.attempts}/${MAX_ATTEMPTS}: output violates the contract — repair and record again${approval ? ' (and re-sign the repaired answer)' : ''}:`);
     console.error(formatErrors(errors));
     process.exit(1);
   }
   rec.status = 'done';
   rec.output = candidate;
-  rec.blockHash = hashBlock(blockDirForHash);
+  rec.blockHash = hashBlock(block);
+  if (approval) rec.approval = approval;
   saveState(stateFile, state);
-  console.log(`✓ recorded output for "${nodeId}" (attempt ${rec.attempts}) — continue with: blocks exec ${wfFile ? relative(root, wfFile) : '<workflow>'} --state ${stateFile}`);
+  console.log(`✓ recorded${approval ? ` (signed by ${approval.keyId})` : ''} output for "${nodeId}" (attempt ${rec.attempts}) — continue with: blocks exec ${wfFile ? relative(root, wfFile) : '<workflow>'} --state ${stateFile}`);
 }

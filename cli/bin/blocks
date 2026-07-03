@@ -25,10 +25,12 @@ usage: blocks <verb> [args]
   exec <workflow.json> [--state f] [--out f] [--input k=v]...
                                       run deterministic nodes, persist run-state
   check-output <block> <file|->       validate candidate fuzzy output against a block contract
-  record --state f --node id --output f
-                                      validate + append a fuzzy node's output to run-state
+  record --state f --node id --output f [--sign keyfile]
+                                      validate + append a fuzzy node's output to run-state;
+                                      --sign adds an Ed25519 approval (required by oracle.claims blocks)
   link <block> [--check]              symlink a block into .claude/skills/
   new block <name> --kind <det|fuzzy> scaffold a block directory
+  new key <id> --claims <a,b>         register an approval key (public in keys/, private gitignored)
 
 vocabulary: block · wire · gate · run · grant   (SPEC.md)`;
 
@@ -70,7 +72,7 @@ function loadValidated(file) {
     console.error(formatErrors(parseErr));
     process.exit(1);
   }
-  const { errors, order } = validateWorkflow(workflow, lib, file);
+  const { errors, order } = validateWorkflow(workflow, lib, file, { root });
   if (errors.length) {
     console.error(`✗ ${file} — ${errors.length} problem(s):`);
     console.error(formatErrors(errors));

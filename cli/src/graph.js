@@ -27,12 +27,13 @@ export function renderGraph(workflow, library, order) {
   const width = Math.max(...order.map((id) => id.length));
   for (const [i, id] of order.entries()) {
     const node = byId.get(id);
-    const block = library.get(node.block);
-    const kind = block?.kind === 'fuzzy' ? '~fuzzy' : ' det  ';
+    const block = node.block ? library.get(node.block) : null;
+    const kind = node.workflow ? 'wf' : block?.kind === 'fuzzy' ? '~fuzzy' : 'det';
+    const pin = node.block ?? node.workflow;
     const deps = [...collectDeps(node)];
     const wires = deps.length ? `◀── ${deps.join(', ')}` : '(source)';
     const connector = i === 0 ? '┌─' : i === order.length - 1 ? '└─' : '├─';
-    lines.push(`${connector} ● ${id.padEnd(width)}  ${node.block}  [${kind.trim()}]  ${wires}`);
+    lines.push(`${connector} ${node.workflow ? '◻' : '●'} ${id.padEnd(width)}  ${pin}  [${kind}]  ${wires}`);
     if (node.when) {
       const pad = i === order.length - 1 ? '   ' : '│  ';
       lines.push(`${pad}   ◇ when ${node.when}   (false → skip "${id}" and everything wired to it)`);
