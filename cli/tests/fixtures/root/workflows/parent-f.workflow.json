@@ -1,0 +1,10 @@
+{
+  "name": "parent-f",
+  "version": 1,
+  "protocol": 2,
+  "grants": { "run": ["printf"], "read": [], "write": [] },
+  "nodes": [
+    { "id": "sub", "workflow": "fchild@1", "in": { "text": "well formed and thoughtful" } },
+    { "id": "after", "block": "echo-text@1", "when": "nodes.sub.output.message != ''", "in": { "text": "child said {{nodes.sub.output.verdict}}" } }
+  ]
+}

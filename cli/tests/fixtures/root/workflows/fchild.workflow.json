@@ -1,0 +1,16 @@
+{
+  "name": "fchild",
+  "version": 1,
+  "protocol": 2,
+  "inputs": { "text": { "type": "string", "default": "judge me" } },
+  "grants": { "run": ["printf"], "read": [], "write": [] },
+  "nodes": [
+    { "id": "echo", "block": "echo-text@1", "in": { "text": "{{inputs.text}}" } },
+    { "id": "judge", "block": "fx-judge@1", "in": { "candidate": "{{nodes.echo.output.text}}" } },
+    { "id": "final", "block": "echo-text@1", "when": "nodes.judge.output.score >= 0.5", "in": { "text": "passed: {{nodes.judge.output.score}}" } }
+  ],
+  "outputs": {
+    "verdict": { "from": "{{nodes.judge.output.verdict}}", "type": "string" },
+    "message": { "from": "{{nodes.final.output.text}}", "type": "string", "required": false }
+  }
+}

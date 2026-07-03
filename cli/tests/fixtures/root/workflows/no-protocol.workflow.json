@@ -1,0 +1,6 @@
+{
+  "name": "no-protocol",
+  "version": 1,
+  "grants": { "run": ["printf"] },
+  "nodes": [ { "id": "sub", "workflow": "child@1", "in": { "text": "x" } } ]
+}

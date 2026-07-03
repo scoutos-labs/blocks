@@ -1,7 +1,8 @@
 // Workflow validation: SPEC.md §3–§5, §7. Every error carries file,
 // JSON-pointer, message, and a fix hint — "invalid workflow" is banned output.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
+import { join, resolve, dirname } from 'node:path';
 import { checkSchemaDef } from './schema.js';
 import { parseTemplate, walkStrings } from './bindings.js';
 import { parseWhen } from './when.js';
@@ -10,6 +11,12 @@ import { coveredBy } from './globs.js';
 const ID_RE = /^[a-z][a-z0-9-]*$/;
 const PIN_RE = /^([a-z][a-z0-9-]*)@(\d+)$/;
 const PATH_GLOB_RE = /^(?!\/)(?!.*\.\.)[^\0]*$/;
+
+// The protocol draft this implementation speaks (PROTOCOL.md [VER-4]).
+export const IMPLEMENTED_PROTOCOL = 2;
+
+// Output declarations embed schema-lite minus default/secret, plus `from`.
+const OUTPUT_DECL_KEYS = ['from', 'type', 'required', 'enum', 'pattern', 'minimum', 'maximum', 'items', 'properties', 'description'];
 
 export function parseWorkflowFile(file) {
   let text;
@@ -26,12 +33,16 @@ export function parseWorkflowFile(file) {
 }
 
 // Returns { errors, order } — order is the topological node order when acyclic.
-export function validateWorkflow(workflow, library, file) {
+// ctx: { root, stack, cache } for resolving embedded child workflows.
+export function validateWorkflow(workflow, library, file, ctx = {}) {
+  const root = ctx.root ?? resolve(dirname(file), '..');
+  const stack = ctx.stack ?? [];
+  const cache = ctx.cache ?? new Map();
   const errors = [];
   const err = (pointer, message, hint) => errors.push({ file, pointer, message, ...(hint ? { hint } : {}) });
 
   // workflows and nodes are closed documents (PROTOCOL [WFL-6])
-  const WF_KEYS = ['name', 'version', 'notes', 'inputs', 'grants', 'nodes'];
+  const WF_KEYS = ['name', 'version', 'notes', 'inputs', 'grants', 'nodes', 'outputs', 'protocol'];
   for (const key of Object.keys(workflow)) {
     if (!WF_KEYS.includes(key)) err(`/${key}`, `unknown workflow key "${key}"`, `allowed: ${WF_KEYS.join(', ')}`);
   }
@@ -39,13 +50,26 @@ export function validateWorkflow(workflow, library, file) {
     if (!['run', 'read', 'write'].includes(key)) err(`/grants/${key}`, `unknown grants key "${key}"`, 'allowed: run, read, write');
   }
   if (Array.isArray(workflow.nodes)) {
-    const NODE_KEYS = ['id', 'block', 'in', 'when', 'after', 'notes'];
+    const NODE_KEYS = ['id', 'block', 'workflow', 'in', 'when', 'after', 'notes'];
     workflow.nodes.forEach((node, i) => {
       if (node === null || typeof node !== 'object') return;
       for (const key of Object.keys(node)) {
         if (!NODE_KEYS.includes(key)) err(`/nodes/${i}/${key}`, `unknown node key "${key}"`, `allowed: ${NODE_KEYS.join(', ')}`);
       }
     });
+  }
+
+  // protocol field (PROTOCOL [VER-4], [VER-5])
+  const declaredProtocol = workflow.protocol ?? 1;
+  if (workflow.protocol !== undefined && (!Number.isInteger(workflow.protocol) || workflow.protocol < 1)) {
+    err('/protocol', `"protocol" must be a positive integer, got ${JSON.stringify(workflow.protocol)}`);
+  } else if (declaredProtocol > IMPLEMENTED_PROTOCOL) {
+    err('/protocol', `document declares protocol ${declaredProtocol}; this implementation speaks protocol ${IMPLEMENTED_PROTOCOL}`, 'a newer runner is required for this workflow');
+  }
+  const usesDraft2 = workflow.outputs !== undefined
+    || (Array.isArray(workflow.nodes) && workflow.nodes.some((n) => n && typeof n === 'object' && n.workflow !== undefined));
+  if (usesDraft2 && declaredProtocol < 2) {
+    err('/protocol', 'workflow uses Draft 2 constructs (outputs or workflow nodes) but does not declare "protocol": 2', 'add "protocol": 2 (PROTOCOL [VER-5])');
   }
 
   if (typeof workflow.name !== 'string' || !ID_RE.test(workflow.name)) {
@@ -67,7 +91,7 @@ export function validateWorkflow(workflow, library, file) {
     return { errors, order: [] };
   }
 
-  // --- pass 1: ids, pins, gather node -> block ---
+  // --- pass 1: ids, pins, gather node -> block (or embedded workflow) ---
   const nodes = new Map();
   workflow.nodes.forEach((node, i) => {
     const p = `/nodes/${i}`;
@@ -79,6 +103,69 @@ export function validateWorkflow(workflow, library, file) {
       err(`${p}/id`, `duplicate node id "${node.id}"`, 'node ids must be unique within a workflow');
       return;
     }
+    if ((node.block === undefined) === (node.workflow === undefined)) {
+      err(`${p}`, 'a node must have exactly one of "block" or "workflow"', 'PROTOCOL [NST-1]');
+      nodes.set(node.id, { node, i, block: null });
+      return;
+    }
+
+    if (node.workflow !== undefined) {
+      const pin = PIN_RE.exec(node.workflow ?? '');
+      if (!pin) {
+        err(`${p}/workflow`, `workflow pin must be "name@version", got ${JSON.stringify(node.workflow)}`, 'exact pins only');
+        nodes.set(node.id, { node, i, block: null });
+        return;
+      }
+      const [, childName, childVersion] = pin;
+      if (stack.includes(childName)) {
+        err(`${p}/workflow`, `workflow inclusion cycle: ${[...stack, childName].join(' -> ')}`, 'nesting is acyclic composition, not recursion (PROTOCOL [NST-3])');
+        nodes.set(node.id, { node, i, block: null });
+        return;
+      }
+      const childFile = join(root, 'workflows', `${childName}.workflow.json`);
+      if (!existsSync(childFile)) {
+        err(`${p}/workflow`, `no workflow "${childName}" at workflows/${childName}.workflow.json`);
+        nodes.set(node.id, { node, i, block: null });
+        return;
+      }
+      let child = cache.get(childName);
+      if (!child) {
+        const { workflow: childWf, errors: parseErr } = parseWorkflowFile(childFile);
+        if (parseErr.length) {
+          errors.push(...parseErr);
+          nodes.set(node.id, { node, i, block: null });
+          cache.set(childName, { invalid: true });
+          return;
+        }
+        const sub = validateWorkflow(childWf, library, childFile, { root, stack: [...stack, workflow.name], cache });
+        child = { workflow: childWf, errors: sub.errors, invalid: sub.errors.length > 0 };
+        cache.set(childName, child);
+        errors.push(...sub.errors);
+      }
+      if (child.invalid) {
+        err(`${p}/workflow`, `embedded workflow "${childName}" is itself invalid — see its errors above`);
+        nodes.set(node.id, { node, i, block: null });
+        return;
+      }
+      if (String(child.workflow.version) !== childVersion) {
+        err(`${p}/workflow`, `pin "${node.workflow}" does not match the file's version ${child.workflow.version}`, `workflows/${childName}.workflow.json declares version ${child.workflow.version}`);
+      }
+      // pseudo-block: the child's interface, shaped like a block for wire resolution
+      const childInputs = Object.fromEntries(Object.entries(child.workflow.inputs ?? {})
+        .map(([k, s]) => [k, s.default !== undefined ? { ...s, required: false } : s]));
+      const childOutputs = Object.fromEntries(Object.entries(child.workflow.outputs ?? {})
+        .map(([k, decl]) => { const { from, ...schema } = decl; return [k, schema]; }));
+      nodes.set(node.id, {
+        node, i,
+        block: {
+          name: childName, version: child.workflow.version, kind: 'workflow',
+          inputs: childInputs, outputs: childOutputs,
+          childGrants: child.workflow.grants ?? {},
+        },
+      });
+      return;
+    }
+
     const pin = PIN_RE.exec(node.block ?? '');
     if (!pin) {
       err(`${p}/block`, `block pin must be "name@version", got ${JSON.stringify(node.block)}`, 'exact pins only — no ranges (SPEC §3)');
@@ -110,6 +197,7 @@ export function validateWorkflow(workflow, library, file) {
       return null;
     }
     if (!dep.block) return null; // pin error already reported
+    const depPin = dep.node.block ?? dep.node.workflow;
     let schema = { type: 'object', properties: dep.block.outputs };
     for (const key of ref.path) {
       // A property-less object output (e.g. a generic extract block) can be
@@ -117,7 +205,7 @@ export function validateWorkflow(workflow, library, file) {
       if (schema.type === 'object' && schema.properties === undefined) return { type: 'unknown' };
       const props = schema.properties ?? {};
       if (schema.type !== 'object' || !props[key]) {
-        err(pointer, `node "${ref.node}" (${dep.node.block}) declares no output "${ref.path.join('.')}"`, `declared outputs: ${Object.keys(dep.block.outputs).join(', ')}`);
+        err(pointer, `node "${ref.node}" (${depPin}) declares no output "${ref.path.join('.')}"`, `declared outputs: ${Object.keys(dep.block.outputs).join(', ')}`);
         return null;
       }
       schema = props[key];
@@ -199,6 +287,50 @@ export function validateWorkflow(workflow, library, file) {
     }
   }
 
+  // --- pass 2.5: workflow output declarations (PROTOCOL §9.1) ---
+  for (const [name, decl] of Object.entries(workflow.outputs ?? {})) {
+    const p = `/outputs/${name}`;
+    if (!/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(name)) err(p, `output name "${name}" is not a valid identifier`);
+    if (decl === null || typeof decl !== 'object' || Array.isArray(decl)) {
+      err(p, 'an output declaration must be an object', '{"from": "{{nodes.x.output.y}}", "type": "string"}');
+      continue;
+    }
+    for (const k of Object.keys(decl)) {
+      if (!OUTPUT_DECL_KEYS.includes(k)) {
+        err(`${p}/${k}`, `unknown output-declaration key "${k}"`, `allowed: ${OUTPUT_DECL_KEYS.join(', ')} — "default" and "secret" are input-only`);
+      }
+    }
+    if (decl.from === undefined) { err(`${p}/from`, 'output declaration needs "from" (a wire)', 'PROTOCOL [OUT-1]'); continue; }
+    const { from, ...schema } = decl;
+    const defErrors = [];
+    checkSchemaDef(schema, p, defErrors);
+    errors.push(...defErrors.map((e) => ({ file, ...e })));
+    // the declaration is the wire's target: same rules as a node input
+    const checkOutWire = (text, target) => {
+      const { parts, whole } = parseTemplate(text);
+      for (const part of parts) if (part.error) err(`${p}/from`, part.error);
+      const refs = parts.filter((x) => x.ref);
+      if (whole) {
+        const srcT = refErrors(refs[0].ref, `${p}/from`, target, { interpolated: false });
+        if (srcT && target?.type && srcT.type !== 'unknown' && srcT.type !== target.type) {
+          err(`${p}/from`, `type mismatch: {{${refs[0].raw}}} is ${srcT.type}, output "${name}" declares ${target.type}`);
+        }
+      } else {
+        if (refs.length > 0 && target?.type && target.type !== 'string') {
+          err(`${p}/from`, `interpolation is only valid into string outputs; "${name}" declares ${target.type}`);
+        }
+        for (const part of refs) {
+          const srcT = refErrors(part.ref, `${p}/from`, target, { interpolated: true });
+          if (srcT && !['string', 'number', 'boolean', 'unknown'].includes(srcT.type)) {
+            err(`${p}/from`, `cannot interpolate ${srcT.type} value {{${part.raw}}} into a string`);
+          }
+        }
+      }
+    };
+    if (typeof from === 'string') checkOutWire(from, schema);
+    else walkStrings(from, (s) => checkOutWire(s, null));
+  }
+
   // --- pass 3: acyclicity (DFS with cycle path reporting) ---
   const order = [];
   const state = new Map(); // 0 visiting, 1 done
@@ -235,6 +367,12 @@ export function validateWorkflow(workflow, library, file) {
         for (const v of block.permissions[key] ?? []) declared[key].add(v);
       }
     }
+    // an embedded workflow's grants count as declarations at the parent (PROTOCOL [NST-6])
+    if (block?.childGrants) {
+      for (const key of ['run', 'read', 'write']) {
+        for (const v of block.childGrants[key] ?? []) declared[key].add(v);
+      }
+    }
   }
   for (const key of ['run', 'read', 'write']) {
     for (const [j, v] of (grants[key] ?? []).entries()) {
@@ -246,6 +384,24 @@ export function validateWorkflow(workflow, library, file) {
       }
     }
   }
+  // parent must cover every grant of an embedded workflow (PROTOCOL [NST-6]):
+  // effective capability of every leaf node is unchanged by embedding.
+  for (const { node, i, block } of nodes.values()) {
+    if (block?.kind !== 'workflow') continue;
+    for (const bin of block.childGrants.run ?? []) {
+      if (!(grants.run ?? []).includes(bin)) {
+        err('/grants/run', `embedded workflow "${node.workflow}" (node "${node.id}") grants "${bin}" but this workflow does not`, `add "${bin}" to grants.run — parents co-sign everything a child may touch`);
+      }
+    }
+    for (const key of ['read', 'write']) {
+      for (const g of block.childGrants[key] ?? []) {
+        if (!(grants[key] ?? []).some((p) => coveredBy(g, p))) {
+          err(`/grants/${key}`, `embedded workflow "${node.workflow}" (node "${node.id}") grants "${g}" but no parent grant covers it`, `add a covering glob to grants.${key}`);
+        }
+      }
+    }
+  }
+
   for (const { node, i, block } of nodes.values()) {
     if (block?.kind !== 'deterministic') continue;
     if (block.exec?.argv) {

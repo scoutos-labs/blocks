@@ -1,0 +1,14 @@
+{
+  "name": "out-bad",
+  "version": 1,
+  "protocol": 2,
+  "grants": { "run": ["printf"] },
+  "nodes": [
+    { "id": "count", "block": "word-count@1", "in": { "text": "a b c" } }
+  ],
+  "outputs": {
+    "wrong": { "from": "{{nodes.count.output.count}}", "type": "string" },
+    "sneaky": { "from": "{{nodes.count.output.count}}", "type": "number", "default": 1 },
+    "missing": { "type": "string" }
+  }
+}

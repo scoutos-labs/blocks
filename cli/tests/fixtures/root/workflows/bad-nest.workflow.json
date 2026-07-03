@@ -1,0 +1,11 @@
+{
+  "name": "bad-nest",
+  "version": 1,
+  "protocol": 2,
+  "grants": { "run": [], "read": [], "write": [] },
+  "nodes": [
+    { "id": "both", "block": "echo-text@1", "workflow": "child@1", "in": {} },
+    { "id": "vmis", "workflow": "child@9", "in": { "text": "x" } },
+    { "id": "sub", "workflow": "child@1", "in": { "text": "y" } }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "parent",
+  "version": 1,
+  "protocol": 2,
+  "inputs": { "text": { "type": "string", "default": "alpha beta" } },
+  "grants": { "run": ["printf"], "read": [], "write": [] },
+  "nodes": [
+    { "id": "sub", "workflow": "child@1", "in": { "text": "{{inputs.text}}" } },
+    { "id": "use", "block": "echo-text@1", "in": { "text": "{{nodes.sub.output.echoed}} = {{nodes.sub.output.words}} words" } }
+  ],
+  "outputs": {
+    "summary": { "from": "{{nodes.use.output.text}}", "type": "string" }
+  }
+}

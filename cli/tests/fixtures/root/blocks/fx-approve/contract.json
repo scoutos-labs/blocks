@@ -1,0 +1,11 @@
+{
+  "name": "fx-approve",
+  "version": 1,
+  "kind": "fuzzy",
+  "inputs": { "candidate": { "type": "string" } },
+  "outputs": {
+    "approved": { "type": "boolean" },
+    "reason": { "type": "string" }
+  },
+  "oracle": { "claims": ["fixture-approver"] }
+}

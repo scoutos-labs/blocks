@@ -1,0 +1,2 @@
+{ "name": "cyc-b", "version": 1, "protocol": 2, "grants": {},
+  "nodes": [ { "id": "a", "workflow": "cyc-a@1", "in": {} } ] }

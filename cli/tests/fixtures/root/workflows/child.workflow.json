@@ -1,0 +1,15 @@
+{
+  "name": "child",
+  "version": 1,
+  "protocol": 2,
+  "inputs": { "text": { "type": "string", "default": "one two three" } },
+  "grants": { "run": ["printf"], "read": [], "write": [] },
+  "nodes": [
+    { "id": "echo", "block": "echo-text@1", "in": { "text": "{{inputs.text}}" } },
+    { "id": "count", "block": "word-count@1", "in": { "text": "{{nodes.echo.output.text}}" } }
+  ],
+  "outputs": {
+    "echoed": { "from": "{{nodes.echo.output.text}}", "type": "string" },
+    "words": { "from": "{{nodes.count.output.count}}", "type": "number" }
+  }
+}

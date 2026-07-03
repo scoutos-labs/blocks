@@ -96,7 +96,7 @@ export function loadBlock(dir) {
 
   const cf = contractFile;
   // contracts are closed documents: unknown keys are invalid (PROTOCOL [BLK-5], [BLK-12])
-  const CONTRACT_KEYS = ['name', 'version', 'kind', 'inputs', 'outputs', 'exec', 'permissions'];
+  const CONTRACT_KEYS = ['name', 'version', 'kind', 'inputs', 'outputs', 'exec', 'permissions', 'oracle'];
   for (const key of Object.keys(contract)) {
     if (!CONTRACT_KEYS.includes(key)) {
       errors.push({ file: cf, pointer: `/${key}`, message: `unknown contract key "${key}"`, hint: `allowed: ${CONTRACT_KEYS.join(', ')}` });
@@ -192,6 +192,22 @@ export function loadBlock(dir) {
     if (!contract.outputs || Object.keys(contract.outputs).length === 0) {
       errors.push({ file: cf, pointer: '/outputs', message: 'fuzzy blocks must declare at least one output field', hint: 'the outputs schema is the prompt contract' });
     }
+    if (contract.oracle !== undefined) {
+      const o = contract.oracle;
+      if (o === null || typeof o !== 'object' || Array.isArray(o)) {
+        errors.push({ file: cf, pointer: '/oracle', message: '"oracle" must be an object', hint: '{"claims": ["release-approver"]}' });
+      } else {
+        for (const k of Object.keys(o)) {
+          if (k !== 'claims') errors.push({ file: cf, pointer: `/oracle/${k}`, message: `unknown oracle key "${k}"`, hint: 'allowed: claims' });
+        }
+        if (!Array.isArray(o.claims) || o.claims.length === 0 || !o.claims.every((c) => typeof c === 'string' && /^[a-z][a-z0-9-]*$/.test(c))) {
+          errors.push({ file: cf, pointer: '/oracle/claims', message: '"claims" must be a non-empty array of claim names ([a-z][a-z0-9-]*)' });
+        }
+      }
+    }
+  }
+  if (contract.kind === 'deterministic' && contract.oracle !== undefined) {
+    errors.push({ file: cf, pointer: '/oracle', message: '"oracle" applies only to fuzzy blocks', hint: 'deterministic blocks have no oracle to make demands of' });
   }
 
   if (errors.length) return { errors };
@@ -204,6 +220,7 @@ export function loadBlock(dir) {
       outputs: contract.outputs ?? {},
       exec: contract.exec,
       permissions: contract.permissions,
+      oracle: contract.oracle,
       dir,
       description: fm.description ?? '',
     },
