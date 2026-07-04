@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Blocks — deterministic workflows any agent can drive</title>
-<meta name="description" content="An animated engineering sheet explaining Blocks: skill-shaped blocks wired into deterministic DAG workflows, where the CLI runs the repeatable parts and any agent answers the fuzzy ones.">
+<meta name="description" content="An animated engineering sheet explaining Blocks: skill-shaped blocks wired into deterministic DAG workflows, where the CLI runs the repeatable parts, any agent answers the fuzzy ones, workflows compose like functions, and approvals demand a key.">
 <style>
   :root {
     --paper: #F2F5F7;
@@ -225,8 +225,8 @@
     </div>
     <div class="tb-meta">
       <div class="tb-cell"><span>DOC</span>blocks-explainer</div>
-      <div class="tb-cell"><span>REV</span>1</div>
-      <div class="tb-cell"><span>DATE</span>2026-07-02</div>
+      <div class="tb-cell"><span>REV</span>2</div>
+      <div class="tb-cell"><span>DATE</span>2026-07-03</div>
       <div class="tb-cell"><span>SHEET</span>1 OF 1</div>
     </div>
   </header>
@@ -356,7 +356,7 @@
         <span id="fig1-caption" role="status" aria-live="polite">Run complete — five nodes done, every block hash recorded. Run it again: the deterministic nodes reproduce byte-identically.</span>
       </div>
     </div>
-    <figcaption><b>FIG. 1</b> — RUN r-269b010f · workflows/changelog-from-git.workflow.json · values from examples/runs/changelog-from-git-r-269b010f.run.json (nothing invented)</figcaption>
+    <figcaption><b>FIG. 1</b> — RUN r-269b010f · workflows/changelog-from-git.workflow.json · values from examples/runs/changelog-from-git-r-269b010f.run.json (nothing invented). This whole workflow now also runs as a single node inside a larger one — FIG. 7.</figcaption>
   </figure>
 
   <!-- ================= SECTION 1 ================= -->
@@ -466,9 +466,9 @@ Exactly one JSON object:
   <div class="fivewords" role="list">
     <div class="fw" role="listitem"><b>block</b><p>One unit of work: a skill-shaped directory, deterministic or fuzzy, with a typed contract.</p></div>
     <div class="fw" role="listitem"><b>wire</b><p><code>{{nodes.log.output.text}}</code> — a binding from one node's output to another's input. Wires define the DAG's edges.</p></div>
-    <div class="fw" role="listitem"><b>gate</b><p>A <code>when</code> condition on a node, in a grammar too small to hide logic in: <code>ref op literal</code>, joined by and/or.</p></div>
+    <div class="fw" role="listitem"><b>gate</b><p>A <code>when</code> condition on a node, in a grammar too small to hide logic in: <code>ref op literal</code>, joined by and/or. Draft 3 adds <code>contains</code> and a <code>#</code> length modifier — still no parens, no functions.</p></div>
     <div class="fw" role="listitem"><b>run</b><p>One execution, persisted as a state file: statuses, outputs, attempts, block hashes. Resumable, diffable, auditable.</p></div>
-    <div class="fw" role="listitem"><b>grant</b><p>The workflow co-signing a block's declared permissions. Effective capability is the intersection — grants never expand.</p></div>
+    <div class="fw" role="listitem"><b>grant</b><p>The workflow co-signing a block's declared permissions. Effective capability is the intersection — grants never expand. Parents co-sign an embedded workflow's grants too.</p></div>
   </div>
 
   <p style="margin-top:22px">Gates cut paths — and a skipped path is a result, not an error. In this repo's
@@ -531,11 +531,106 @@ Exactly one JSON object:
   <p style="margin-top:22px">And because answers are schema-checked at the door, a weak oracle
   degrades loudly, not silently: an invalid answer is bounced with the exact violating field,
   three attempts total, then the node fails and the run stops.</p>
+  <p>When a node demands more than an answer — a signing key with declared claims, an attested
+  capability — the pause banner prints the complete ceremony, <code>--sign</code> and
+  <code>--attest</code> included, exact strings filled in. The protocol never makes the oracle
+  guess what authority looks like. That story is FIG. 7.</p>
   </section>
 
-  <!-- ================= SECTION 5 ================= -->
+  <!-- ================= SECTION 5 (REV 2) ================= -->
   <section class="reveal">
-  <h2><span class="secno">5</span>Guarantees, honestly stated</h2>
+  <h2><span class="secno">5</span>Compose, then demand a key</h2>
+  <p>The protocol's next two drafts answered two questions. <em>Can workflows nest?</em> Once a workflow
+  declares typed <span style="color:var(--det); font-weight:600">outputs</span>, it has the same
+  interface shape as a block — so it can be a node. The entire FIG. 1 pipeline is now one
+  framed node inside the release workflow below, and the parent must co-sign everything the
+  child may touch: the root workflow's grants are a complete statement of what the whole tree
+  can do. <em>Can approval be authoritative?</em> A fuzzy block can demand that its answer
+  arrive signed by a registered key carrying declared claims, and attested to a declared
+  capability. The runner refuses anything less at the door — without burning the attempt
+  budget.</p>
+
+  <!-- FIG. 7: the release run, static plate (deliberately not animated — one sheet, one show)
+       source: workflows/release.workflow.json
+       source: examples/runs/release-r-c07ba399.run.json -->
+  <figure>
+    <div class="plate">
+      <svg viewBox="0 0 920 264" role="img" aria-label="Release workflow: the changelog workflow embedded as one node, a gate on its output, a signed and attested approval, then the release cut.">
+        <text class="lane-label" x="24" y="30">RELEASE RUN r-c07ba399 — PROTOCOL 3 · THE FIG. 1 PIPELINE, PROMOTED TO A PART</text>
+
+        <g aria-hidden="true">
+          <path class="wire" d="M 268 120 H 316"/><polygon class="wire-head" points="316,116 324,120 316,124"/>
+          <path class="wire" d="M 384 120 H 420"/><polygon class="wire-head" points="420,116 428,120 420,124"/>
+          <path class="wire" d="M 606 120 H 656"/><polygon class="wire-head" points="656,116 664,120 656,124"/>
+        </g>
+
+        <g>
+          <rect x="34" y="86" width="234" height="68" fill="none" stroke="#1B5CA4" stroke-width="1.2"/>
+          <rect x="40" y="92" width="222" height="56" fill="#E3ECF6" stroke="#1B5CA4" stroke-width="1.5"/>
+          <text class="n-label" x="52" y="115">changelog</text>
+          <text class="n-block" x="52" y="132">changelog-from-git@2 · all of FIG. 1</text>
+          <text class="n-kind-det" x="196" y="115">[wf]</text>
+          <rect x="52" y="160" width="210" height="16" rx="2" fill="#1B5CA4"/>
+          <text class="hash" x="58" y="172">childRun r-a8e59d7d · wf 6edfa400</text>
+        </g>
+
+        <g>
+          <polygon points="352,88 384,120 352,152 320,120" fill="#FBFCFD" stroke="#16222E" stroke-width="1.5"/>
+          <text class="n-label" x="352" y="124" text-anchor="middle" style="font-size:11px">when</text>
+          <text class="gate-expr" x="352" y="176" text-anchor="middle">#changelog &gt; 0 <tspan fill="#1F6B4E">✓</tspan></text>
+          <text class="gate-expr" x="352" y="191" text-anchor="middle">and … contains 'Changelog' <tspan fill="#1F6B4E">✓</tspan></text>
+        </g>
+
+        <g>
+          <rect x="428" y="92" width="178" height="56" fill="#F6ECD8" stroke="#C08A1E" stroke-width="1.5" stroke-dasharray="5 3"/>
+          <text class="n-label" x="440" y="115">approve</text>
+          <text class="n-block" x="440" y="132">approve-release@2</text>
+          <text class="n-kind-fuzzy" x="546" y="115">[~fuzzy]</text>
+          <text x="428" y="76" style="font-size:10px" fill="#16222E">✗ unsigned → refused, exit 3 — no attempt burned</text>
+          <rect x="440" y="160" width="106" height="16" rx="2" fill="#8A5E0B"/>
+          <text class="hash" x="447" y="172">signed k-tom</text>
+          <rect x="554" y="160" width="188" height="16" rx="2" fill="#8A5E0B"/>
+          <text class="hash" x="561" y="172">attested release-judgment-v1</text>
+        </g>
+
+        <g>
+          <rect x="664" y="92" width="128" height="56" fill="#E3ECF6" stroke="#1B5CA4" stroke-width="1.5"/>
+          <text class="n-label" x="676" y="115">cut</text>
+          <text class="n-block" x="676" y="132">write-file@1</text>
+          <text x="676" y="196" style="font-size:10px; letter-spacing:.06em" fill="#1F6B4E">RELEASE.md · 557 B</text>
+        </g>
+
+        <text x="24" y="246" style="font-size:10px" fill="#45566A">the parent's grants cover the child's — <tspan fill="#1B5CA4">run [git] · write [CHANGELOG.md, RELEASE.md]</tspan> is everything this whole tree can touch</text>
+      </svg>
+    </div>
+    <figcaption><b>FIG. 7</b> — RUN r-c07ba399 · workflows/release.workflow.json · gate verbatim: <code>#nodes.changelog.output.changelog &gt; 0 and nodes.changelog.output.changelog contains 'Changelog'</code> · a plate, not an animation — one sheet keeps one show (FIG. 1)</figcaption>
+  </figure>
+
+  <!-- source: examples/runs/release-r-c07ba399.run.json /nodes/approve -->
+  <figure>
+    <div class="plate">
+      <div class="plate-head"><span>CLI OUTPUT — THE APPROVAL DOOR</span><span>authority is refused politely, then verified forever</span></div>
+      <pre><span class="c-dim">$ blocks record --state runs/release-r-c07ba399.run.json --node approve --output answer.json</span>
+refused: node "approve" requires an approval signed by a key with claims [<span class="c-fuzzy">release-approver</span>]
+         — pass --sign &lt;private-keyfile&gt;
+
+<span class="c-dim">$ blocks record … --sign keys/k-tom.private.json --attest release-judgment-v1</span>
+<span class="c-pass">✓ recorded (signed by k-tom)</span> output for "approve" (attempt 1) — continue with: blocks exec …
+
+<span class="c-dim"># on the record, re-verifiable from the public registry alone:</span>
+"approve": {
+  "status": <span class="c-pass">"done"</span>,
+  "capability": <span class="c-fuzzy">"release-judgment-v1"</span>,
+  "approval": { "keyId": <span class="c-fuzzy">"k-tom"</span>, "signature": <span class="c-fuzzy">"8xN0HE48fU4n…"</span> }
+}</pre>
+    </div>
+    <figcaption><b>FIG. 8</b> — cli/src/run.js · the signature binds workflow, block, run, node, input, and answer — anyone with keys/k-tom.json can re-verify it, forever. Whether k-tom is a human or an agent is the key's business, not the protocol's.</figcaption>
+  </figure>
+  </section>
+
+  <!-- ================= SECTION 6 ================= -->
+  <section class="reveal">
+  <h2><span class="secno">6</span>Guarantees, honestly stated</h2>
   <ul class="spec">
     <li>Bindings are filled as whole argv elements — never through a shell. A value of
     <code>"; rm -rf ."</code> arrives as those literal bytes. There's a test.</li>
@@ -546,13 +641,20 @@ Exactly one JSON object:
     containers, and says so.</li>
     <li>Fuzzy content is never trusted: schemas bound its shape, gates bound its blast radius,
     and prompt contracts tell the oracle to treat inputs as data, not instructions.</li>
+    <li>Approvals are Ed25519 signatures over a domain-tagged string binding workflow, block,
+    run, node, input, and answer. Record-time verification is enforced; whether a key's claims
+    are <em>true</em> is a reviewed registry statement — declared, and the sheet says so.
+    Capability attestations follow the same honesty: equality enforced, truth declared.</li>
+    <li>Hashes are draft-scoped: a run is read under the protocol draft it declares. Older
+    committed runs are history, not drift.</li>
     <li>Non-goals, kept on purpose: no loops or fan-out in the DAG, no parallel scheduler, no
-    registry, no server. The CLI never calls a model.</li>
+    registry, no server, no PKI. The CLI never calls a model.</li>
   </ul>
 
   <p class="colophon">
-    THE CHANGELOG.MD IN THIS REPOSITORY WAS WRITTEN BY THE RUN IN FIG. 1 — JUDGED 0.85, GATE
-    PASSED, 394 BYTES.<br>
+    THE RUN IN FIG. 1 WROTE THIS REPOSITORY'S FIRST CHANGELOG.MD — JUDGED 0.85, 394 BYTES;
+    FIG. 7'S CHILD RUN HAS SINCE REWRITTEN IT (JUDGED 0.9, 420 BYTES). RELEASE.MD WAS CUT BY
+    FIG. 7 — APPROVED, SIGNED BY K-TOM, 557 BYTES.<br>
     THIS SHEET IS ONE SELF-CONTAINED FILE: NO EXTERNAL FONTS, SCRIPTS, OR REQUESTS. ANIMATION
     RESPECTS <span style="white-space:nowrap">PREFERS-REDUCED-MOTION</span>; WITH SCRIPTS OFF, THE
     RUN RENDERS COMPLETE.<br>

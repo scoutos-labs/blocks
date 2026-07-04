@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PRD — Guide v3 update (second act: composition + signed approval)</title>
+<style>
+  body { font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:#1a1d23; background:#fafaf8; margin:0; padding:2rem 1rem; }
+  main { max-width:920px; margin:0 auto; }
+  h1 { font-size:1.4rem; } h2 { font-size:1.1rem; margin-top:1.6rem; border-bottom:1px solid #e5e7eb; padding-bottom:.3rem; }
+  code { font-family:ui-monospace,Menlo,monospace; font-size:.85em; background:#eef0ee; padding:.1em .35em; border-radius:4px; }
+  ul { padding-left:1.3rem; }
+  .meta { color:#6b7280; font-size:.85rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Guide v3 update — REV 2 of the animated explainer</h1>
+<p class="meta">slug <code>blocks-guide-v3</code> · 2026-07-03 · deliverable: updated <code>docs/blocks-explainer.html</code> + harness + republish to zenbin (same slug) · planning done in conversation; scope and the stepped-static choice explicitly user-approved — no separate planner/plan-gate round (documented deviation); full implementation-review gate retained.</p>
+
+<h2>Definition</h2>
+<p><strong>Additive second act, not a rewrite.</strong> The guide keeps its drafting-sheet identity, its exactly-one-autoplay-animation rule, and everything currently on the page (all still true). It gains: a new §5 "Compose, then demand a key" telling the Draft 02/03 story through the real release run <code>r-c07ba399</code> — the existing FIG. 1 workflow appearing as one ◻ node inside a bigger DAG, the new-operator gate, the unsigned refusal at exit 3, and the signed+attested approval — rendered as a <strong>stepped-static plate</strong> (no JS, no second animation). Guarantees → §6. Small touch-ups to the five-words strip, any-agent section, title block (REV 2), and colophon.</p>
+
+<h2>Plan — 3 steps (short loop, one commit at complete)</h2>
+<ul>
+  <li><strong>Step 1 — Content update.</strong> AC: title block REV 2 / 2026-07-03; new §5 with (a) prose bridging outputs → workflow-as-node → parent-co-signs-child, (b) FIG. 7: static SVG of the release DAG in the two-ink system — ◻ changelog child node (childRun + wfHash 6edfa400 stamps), comparator gate showing the verbatim <code>#…&gt; 0 and … contains 'Changelog'</code> expression, approve node with <code>signed k-tom</code> + <code>attested release-judgment-v1</code> stamps and an exit-3 refusal annotation, cut → RELEASE.md · 557 B, (c) FIG. 8: ruled CLI plate with the real refusal line, the real signed-record line, and the approval-record JSON excerpt (sig prefix 8xN0HE48fU4n); five-words gate/grant cards updated (contains/#; parents co-sign children); any-agent section notes the --sign/--attest ceremony; guarantees gains draft-scoped hashes + approval tiers bullets; colophon gains the RELEASE.md line; FIG. 1 caption cross-references FIG. 7. Every number verbatim from committed artifacts; source comments on all new plates. NO new &lt;script&gt;, no second IntersectionObserver target.</li>
+  <li><strong>Step 2 — Harness + visual evidence.</strong> AC: <code>docs/blocks-explainer-check.mjs</code> extended: new source-comment paths present; gate string, sig prefix, k-tom, release-judgment-v1, 557, r-c07ba399, childRun linkage all cross-checked against the run files; still exactly one <code>&lt;script&gt;</code> block and one IntersectionObserver-driven figure; size ≤ 200 KB. ALL PASS + headless screenshots (new section renders; animation still plays).</li>
+  <li><strong>Step 3 — Review gate + republish.</strong> AC: impl reviewer scores taste/originality ≥ 4 with the one-animation rule verified; repairs applied; regenerated page republished to slug <code>blocks-explainer</code>; raw bytes identical; handoff complete.</li>
+</ul>
+
+<h2>Taste criteria</h2>
+<ul>
+  <li>Reads as the same sheet, one revision later — REV 2 in the title block is the only "version marketing".</li>
+  <li>Exactly one animated element on the page, still FIG. 1. FIG. 7 is a plate, not a show.</li>
+  <li>Two-ink system extended, not diluted: the ◻ child node and approval stamps use existing det/fuzzy inks; the refusal annotation earns its ink (exit-3 red? no — keep the pass-green/ink palette; refusal in ink with the ✗ mark).</li>
+  <li>No number without a committed source; the story stays "this repo did this," never marketing.</li>
+  <li>≤ 7 min read; size budget unchanged.</li>
+</ul>
+
+<h2>Constraints</h2>
+<ul><li>Self-contained; no external requests; no /Users paths; no private key material (sig prefix + keyId only); title/favicon identity stable for the existing zenbin slug.</li></ul>
+
+<h2>Definition of done</h2>
+<ul><li>Steps 1–3 pass; explainer harness ALL PASS; screenshots verify; reviewer ≥ 4/4; published bytes identical; single commit at complete.</li></ul>
+</main>
+</body>
+</html>

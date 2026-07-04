@@ -1,5 +1,5 @@
 // Validation harness for docs/blocks-explainer.html (PRD step 5).
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 
 const file = process.argv[2];
 const html = readFileSync(file, 'utf8');
@@ -106,6 +106,33 @@ for (const [name, hex, min, bg] of [
 ]) check(`contrast ${name} >= ${min}:1`, ratio(hex, bg) >= min, ratio(hex, bg).toFixed(2));
 check('no light-on-#C08A1E chip text', !/rx="2" fill="#C08A1E"/.test(html),
   'fuzzy chips must use the darker #8A5E0B fill');
+
+// ---------------- REV 2: composition + signed approval act ----------------
+
+check('REV 2 stamped in the title block', html.includes('<span>REV</span>2'));
+const rel = JSON.parse(src('examples/runs/release-r-c07ba399.run.json'));
+check('FIG.7 values match the release run',
+  html.includes('r-c07ba399') && html.includes('r-a8e59d7d') &&
+  rel.nodes.changelog.workflowHash.includes('6edfa400') && html.includes('6edfa400') &&
+  rel.nodes.cut.output.bytes === 557 && html.includes('557'));
+check('approval values match the run (keyId, capability, signature prefix)',
+  rel.nodes.approve.approval.keyId === 'k-tom' && html.includes('k-tom') &&
+  rel.nodes.approve.capability === 'release-judgment-v1' && html.includes('release-judgment-v1') &&
+  html.includes(rel.nodes.approve.approval.signature.slice(0, 12)));
+check('release gate quoted verbatim',
+  html.includes(JSON.parse(src('workflows/release.workflow.json')).nodes.find((n) => n.id === 'approve').when
+    .replace(/>/g, '&gt;')));
+check('colophon matches the committed CHANGELOG.md lineage',
+  src('CHANGELOG.md').includes('judged 0.9') && html.includes('JUDGED 0.9, 420 BYTES') &&
+  statSync('CHANGELOG.md').size === 420);
+check('new plates carry source comments',
+  html.includes('source: workflows/release.workflow.json') &&
+  html.includes('source: examples/runs/release-r-c07ba399.run.json'));
+check('still exactly one <script> block (FIG.7 is a plate, not a second show)',
+  (html.match(/<script>/g) || []).length === 1 &&
+  (html.match(/new IntersectionObserver/g) || []).length === 2 /* reveals + fig1 only */);
+check('no private key material (only the public signature prefix)',
+  !html.includes('privateJwk') && !html.includes('"d":'));
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);
