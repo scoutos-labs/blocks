@@ -58,7 +58,7 @@ npm link
 blocks help
 ```
 
-The package is not published to npm yet.
+The package is not published to npm yet. Its npm name is `agent-blocks`; the installed CLI remains `blocks`.
 
 ## Quickstart
 

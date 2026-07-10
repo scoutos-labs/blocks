@@ -1,14 +1,21 @@
 {
-  "name": "blocks",
+  "name": "agent-blocks",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
-  "description": "Skill-shaped no-code blocks that compose into deterministic DAG workflows for agents.",
+  "description": "Skill-shaped blocks that compose into deterministic DAG workflows for agents.",
   "bin": {
     "blocks": "cli/bin/blocks"
   },
   "engines": {
     "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/scoutos-labs/blocks.git"
+  },
+  "homepage": "https://blocks.zenbin.org/",
+  "bugs": {
+    "url": "https://github.com/scoutos-labs/blocks/issues"
   },
   "scripts": {
     "test": "node --test cli/tests/*.test.js",
