@@ -1336,7 +1336,7 @@ Error format: every validation error prints file, JSON pointer, message,
 and a fix hint. `plan` is static [RNR-18]; `runs --json` is the blessed
 secret-safe pause manifest rather than a second persisted state file.
 
-The repository's test suite (`node --test 'cli/tests/*.test.js'`, 119 tests)
+The repository's test suite (`node --test cli/tests/*.test.js`, 119 tests)
 and the language-neutral fixtures under `conformance/vectors/` are an
 informative, partial conformance suite for the Runner class.
 

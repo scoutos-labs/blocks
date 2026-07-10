@@ -307,7 +307,7 @@ sq-string = "'", { any character except "'" }, "'" ;</pre>
   then:  blocks record --state runs/changelog-from-git-r-269b010f.run.json --node judge --output &lt;answer.json&gt;
   state: runs/changelog-from-git-r-269b010f.run.json</pre>
 <p>Error format: every validation error prints file, JSON pointer, message, and a fix hint. <code>plan</code> is static <span class="rid">[RNR-18]</span>; <code>runs --json</code> is the blessed secret-safe pause manifest rather than a second persisted state file.</p>
-<p>The repository's test suite (<code>node --test 'cli/tests/*.test.js'</code>, 119 tests) and the language-neutral fixtures under <code>conformance/vectors/</code> are an informative, partial conformance suite for the Runner class.</p>
+<p>The repository's test suite (<code>node --test cli/tests/*.test.js</code>, 119 tests) and the language-neutral fixtures under <code>conformance/vectors/</code> are an informative, partial conformance suite for the Runner class.</p>
 <h2 id="appendix-b--worked-example-informative">Appendix B — Worked example (informative)</h2>
 <p>The repository's own changelog workflow, verbatim (<code>workflows/changelog-from-git.workflow.json</code>, grants line exact):</p>
 <pre>"grants": { "run": ["git"], "read": [], "write": ["CHANGELOG.md"] }</pre>

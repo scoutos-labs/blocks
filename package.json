@@ -11,7 +11,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test 'cli/tests/*.test.js'",
+    "test": "node --test cli/tests/*.test.js",
     "validate:workflows": "for f in workflows/*.workflow.json; do cli/bin/blocks validate \"$f\" || exit 1; done",
     "plan:triage": "cli/bin/blocks plan workflows/triage-bug-report.workflow.json",
     "audit:examples": "for f in examples/runs/current/*.run.json; do cli/bin/blocks audit \"$f\" || exit 1; done",
