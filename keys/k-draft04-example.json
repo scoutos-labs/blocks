@@ -1,0 +1,11 @@
+{
+  "keyId": "k-draft04-example",
+  "publicJwk": {
+    "crv": "Ed25519",
+    "x": "jBqHKw_q4lMdt4B2It-HgDR7Qxkvp0atBGKmhot2xxc",
+    "kty": "OKP"
+  },
+  "claims": [
+    "release-approver"
+  ]
+}

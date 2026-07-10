@@ -1,0 +1,8 @@
+{
+  "draft": 4,
+  "vectors": [
+    { "id": "deterministic-argv", "blockDir": "blocks/render-template", "hash": "sha256:41bf4841bd6f6106972efd0be1c1b1246933c7d6871db1c725cac634b3317608" },
+    { "id": "deterministic-entry", "blockDir": "blocks/read-file", "hash": "sha256:74a9a58667e677fd866a5daa1cb93de2245504256d7e14fcd0e50018943f6475" },
+    { "id": "fuzzy-skill-contract", "blockDir": "blocks/classify", "hash": "sha256:63cbcec94e50a3ec90c2db645db4a52ef0625b549781242b6e3bdd9e3a39189e" }
+  ]
+}

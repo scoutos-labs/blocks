@@ -1,9 +1,9 @@
 // Block library loader: shared by every verb, so a block that loads for
 // `blocks list` loads identically for validate/exec/link.
 
-import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
-import { join, basename } from 'node:path';
-import { checkSchemaDef } from './schema.js';
+import { readFileSync, readdirSync, existsSync, statSync, realpathSync } from 'node:fs';
+import { join, basename, isAbsolute, relative } from 'node:path';
+import { checkSchemaDef, FIELD_IDENT_RE } from './schema.js';
 import { parseTemplate } from './bindings.js';
 
 // Documented Claude Code skill frontmatter keys. Blocks may use ONLY these
@@ -30,23 +30,36 @@ export function parseFrontmatter(text, file, errors) {
   return fm;
 }
 
-function checkFields(fields, pointer, errors, file) {
+function pointerSegment(name) {
+  return String(name).replaceAll('~', '~0').replaceAll('/', '~1');
+}
+
+function isObjectRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function checkFields(fields, pointer, errors, file, options = {}) {
   if (fields === undefined) return;
-  if (fields === null || typeof fields !== 'object' || Array.isArray(fields)) {
+  if (!isObjectRecord(fields)) {
     errors.push({ file, pointer, message: 'must be an object mapping field names to schemas' });
     return;
   }
   for (const [name, schema] of Object.entries(fields)) {
+    const p = `${pointer}/${pointerSegment(name)}`;
+    if (!FIELD_IDENT_RE.test(name)) {
+      errors.push({ file, pointer: p, message: `field identifier "${name}" must match ${FIELD_IDENT_RE}` });
+    }
     const errs = [];
-    checkSchemaDef(schema, `${pointer}/${name}`, errs);
+    checkSchemaDef(schema, p, errs, options);
     errors.push(...errs.map((e) => ({ file, ...e })));
   }
 }
 
+const NAME_RE = /^[a-z][a-z0-9-]*$/;
 const PATH_GLOB_RE = /^(?!\/)(?!.*\.\.)[^\0]*$/; // relative, no `..` segments
 
 function checkPermissions(perms, file, errors) {
-  if (perms === null || typeof perms !== 'object' || Array.isArray(perms)) {
+  if (!isObjectRecord(perms)) {
     errors.push({ file, pointer: '/permissions', message: 'deterministic blocks must declare a "permissions" object', hint: '{"run": [], "read": [], "write": [], "network": false}' });
     return;
   }
@@ -56,11 +69,13 @@ function checkPermissions(perms, file, errors) {
       errors.push({ file, pointer: `/permissions/${key}`, message: `"${key}" must be an array`, hint: 'use [] for none' });
       continue;
     }
-    if (key !== 'run') {
-      for (const [i, glob] of list.entries()) {
-        if (typeof glob !== 'string' || !PATH_GLOB_RE.test(glob)) {
-          errors.push({ file, pointer: `/permissions/${key}/${i}`, message: `path glob ${JSON.stringify(glob)} is invalid`, hint: 'workspace-relative, no absolute paths, no ".."' });
-        }
+    for (const [i, value] of list.entries()) {
+      if (typeof value !== 'string' || value === '') {
+        errors.push({ file, pointer: `/permissions/${key}/${i}`, message: `"${key}" entries must be non-empty strings` });
+        continue;
+      }
+      if (key !== 'run' && !PATH_GLOB_RE.test(value)) {
+        errors.push({ file, pointer: `/permissions/${key}/${i}`, message: `path glob ${JSON.stringify(value)} is invalid`, hint: 'workspace-relative, no absolute paths, no ".."' });
       }
     }
   }
@@ -95,6 +110,14 @@ export function loadBlock(dir) {
   }
 
   const cf = contractFile;
+  if (!NAME_RE.test(dirName)) {
+    errors.push({ file: cf, pointer: '/name', message: `block directory name "${dirName}" must match ${NAME_RE}` });
+  }
+  if (!isObjectRecord(contract)) {
+    errors.push({ file: cf, pointer: '', message: 'contract.json must be a JSON object' });
+    return { errors };
+  }
+
   // contracts are closed documents: unknown keys are invalid (PROTOCOL [BLK-5], [BLK-12])
   const CONTRACT_KEYS = ['name', 'version', 'kind', 'inputs', 'outputs', 'exec', 'permissions', 'oracle'];
   for (const key of Object.keys(contract)) {
@@ -102,28 +125,35 @@ export function loadBlock(dir) {
       errors.push({ file: cf, pointer: `/${key}`, message: `unknown contract key "${key}"`, hint: `allowed: ${CONTRACT_KEYS.join(', ')}` });
     }
   }
-  if (contract.exec && typeof contract.exec === 'object' && !Array.isArray(contract.exec)) {
-    for (const key of Object.keys(contract.exec)) {
-      if (!['argv', 'capture', 'entry'].includes(key)) {
-        errors.push({ file: cf, pointer: `/exec/${key}`, message: `unknown exec key "${key}"`, hint: 'allowed: argv, capture, entry' });
+  if (contract.exec !== undefined) {
+    if (!isObjectRecord(contract.exec)) {
+      errors.push({ file: cf, pointer: '/exec', message: '"exec" must be an object' });
+    } else {
+      for (const key of Object.keys(contract.exec)) {
+        if (!['argv', 'capture', 'entry'].includes(key)) {
+          errors.push({ file: cf, pointer: `/exec/${key}`, message: `unknown exec key "${key}"`, hint: 'allowed: argv, capture, entry' });
+        }
+      }
+      if (contract.exec.entry !== undefined && contract.exec.capture !== undefined) {
+        errors.push({ file: cf, pointer: '/exec/capture', message: '"capture" applies only to the argv variant', hint: 'entry scripts always print a JSON object' });
       }
     }
-    if (contract.exec.entry !== undefined && contract.exec.capture !== undefined) {
-      errors.push({ file: cf, pointer: '/exec/capture', message: '"capture" applies only to the argv variant', hint: 'entry scripts always print a JSON object' });
-    }
   }
-  if (contract.permissions && typeof contract.permissions === 'object' && !Array.isArray(contract.permissions)) {
+  if (contract.permissions !== undefined && isObjectRecord(contract.permissions)) {
     for (const key of Object.keys(contract.permissions)) {
       if (!['run', 'read', 'write', 'network'].includes(key)) {
         errors.push({ file: cf, pointer: `/permissions/${key}`, message: `unknown permissions key "${key}"`, hint: 'allowed: run, read, write, network' });
       }
     }
   }
-  if (contract.name !== dirName) {
+  if (typeof contract.name !== 'string' || !NAME_RE.test(contract.name)) {
+    errors.push({ file: cf, pointer: '/name', message: `contract name must match ${NAME_RE}, got ${JSON.stringify(contract.name)}` });
+  } else if (contract.name !== dirName) {
     errors.push({ file: cf, pointer: '/name', message: `contract name ${JSON.stringify(contract.name)} must equal directory name "${dirName}"` });
   }
-  if (fm.name !== undefined && fm.name !== dirName) {
-    errors.push({ file: skillFile, pointer: '', message: `frontmatter name "${fm.name}" must equal directory name "${dirName}"` });
+  if (fm.name !== undefined) {
+    if (!NAME_RE.test(fm.name)) errors.push({ file: skillFile, pointer: '', message: `frontmatter name "${fm.name}" must match ${NAME_RE}` });
+    if (fm.name !== dirName) errors.push({ file: skillFile, pointer: '', message: `frontmatter name "${fm.name}" must equal directory name "${dirName}"` });
   }
   if (!Number.isInteger(contract.version) || contract.version < 1) {
     errors.push({ file: cf, pointer: '/version', message: `"version" must be a positive integer, got ${JSON.stringify(contract.version)}` });
@@ -131,23 +161,36 @@ export function loadBlock(dir) {
   if (contract.kind !== 'deterministic' && contract.kind !== 'fuzzy') {
     errors.push({ file: cf, pointer: '/kind', message: `"kind" must be "deterministic" or "fuzzy", got ${JSON.stringify(contract.kind)}` });
   }
-  checkFields(contract.inputs ?? {}, '/inputs', errors, cf);
-  checkFields(contract.outputs ?? {}, '/outputs', errors, cf);
+  checkFields(contract.inputs, '/inputs', errors, cf, { allowDefault: false, allowSecret: false });
+  const inputFields = isObjectRecord(contract.inputs) ? contract.inputs : {};
+  checkFields(contract.outputs, '/outputs', errors, cf, { allowDefault: false, allowSecret: false, allowEnumFromInput: true, inputFields });
 
   if (contract.kind === 'deterministic') {
-    const exec = contract.exec;
+    const exec = isObjectRecord(contract.exec) ? contract.exec : undefined;
+    if (exec?.argv !== undefined && !Array.isArray(exec.argv)) {
+      errors.push({ file: cf, pointer: '/exec/argv', message: '"argv" must be a non-empty array of strings' });
+    }
+    if (exec?.entry !== undefined && typeof exec.entry !== 'string') {
+      errors.push({ file: cf, pointer: '/exec/entry', message: '"entry" must be a string' });
+    }
     const hasArgv = Array.isArray(exec?.argv);
     const hasEntry = typeof exec?.entry === 'string';
     if (!exec || hasArgv === hasEntry) {
       errors.push({ file: cf, pointer: '/exec', message: 'deterministic blocks need "exec" with exactly one of "argv" or "entry"', hint: '{"argv": [...], "capture": "text"|"json"} or {"entry": "run.mjs"}' });
     }
     if (hasArgv) {
+      if (exec.argv.length === 0) {
+        errors.push({ file: cf, pointer: '/exec/argv', message: '"argv" must be a non-empty array of strings' });
+      }
+      if (typeof exec.argv[0] !== 'string' || exec.argv[0] === '' || exec.argv[0].includes('{{')) {
+        errors.push({ file: cf, pointer: '/exec/argv/0', message: 'argv[0] (the binary) must be a literal non-empty string, not a placeholder' });
+      }
       const capture = exec.capture ?? 'json';
       if (capture !== 'text' && capture !== 'json') {
         errors.push({ file: cf, pointer: '/exec/capture', message: `"capture" must be "text" or "json", got ${JSON.stringify(exec.capture)}` });
       }
       if (capture === 'text') {
-        const outs = Object.keys(contract.outputs ?? {});
+        const outs = isObjectRecord(contract.outputs) ? Object.keys(contract.outputs) : [];
         if (outs.length !== 1 || outs[0] !== 'text' || contract.outputs.text.type !== 'string') {
           errors.push({ file: cf, pointer: '/outputs', message: 'capture "text" requires outputs to be exactly {"text": {"type": "string"}}' });
         }
@@ -158,24 +201,33 @@ export function loadBlock(dir) {
           return;
         }
         const { parts, whole } = parseTemplate(arg);
+        for (const part of parts) {
+          if (part.error) errors.push({ file: cf, pointer: `/exec/argv/${i}`, message: part.error, hint: 'argv placeholders must be whole elements like {{inputs.name}}' });
+        }
         const refs = parts.filter((p) => p.ref);
         if (refs.length === 0) return;
         if (!whole) {
           errors.push({ file: cf, pointer: `/exec/argv/${i}`, message: `placeholder must occupy a whole argv element, got ${JSON.stringify(arg)}`, hint: 'split the argument so the binding stands alone (injection safety, SPEC §2.2)' });
         }
         for (const p of refs) {
-          if (p.ref.kind !== 'input' || !(contract.inputs ?? {})[p.ref.key]) {
-            errors.push({ file: cf, pointer: `/exec/argv/${i}`, message: `argv placeholder must reference a declared input, got "{{${p.raw}}}"`, hint: `declared inputs: ${Object.keys(contract.inputs ?? {}).join(', ') || '(none)'}` });
+          if (p.ref.kind !== 'input' || !inputFields[p.ref.key]) {
+            errors.push({ file: cf, pointer: `/exec/argv/${i}`, message: `argv placeholder must reference a declared input, got "{{${p.raw}}}"`, hint: `declared inputs: ${Object.keys(inputFields).join(', ') || '(none)'}` });
           }
         }
       });
-      if (i0(exec.argv)) {
-        errors.push({ file: cf, pointer: '/exec/argv/0', message: 'argv[0] (the binary) must be a literal, not a placeholder' });
-      }
     }
     if (hasEntry) {
-      if (!existsSync(join(dir, exec.entry))) {
+      if (isAbsolute(exec.entry) || !PATH_GLOB_RE.test(exec.entry) || exec.entry === '') {
+        errors.push({ file: cf, pointer: '/exec/entry', message: `entry script ${JSON.stringify(exec.entry)} is invalid`, hint: 'entry must be a workspace-relative filename inside the block directory, with no absolute paths or ".."' });
+      } else if (!existsSync(join(dir, exec.entry))) {
         errors.push({ file: cf, pointer: '/exec/entry', message: `entry script "${exec.entry}" not found in block directory` });
+      } else {
+        const realDir = realpathSync(dir);
+        const realEntry = realpathSync(join(dir, exec.entry));
+        const rel = relative(realDir, realEntry);
+        if (rel.startsWith('..') || isAbsolute(rel)) {
+          errors.push({ file: cf, pointer: '/exec/entry', message: `entry script "${exec.entry}" resolves outside the block directory`, hint: 'do not point exec.entry through a symlink escape' });
+        }
       }
     }
     checkPermissions(contract.permissions, cf, errors);
@@ -189,7 +241,7 @@ export function loadBlock(dir) {
     if (contract.permissions !== undefined) {
       errors.push({ file: cf, pointer: '/permissions', message: 'fuzzy blocks must not declare "permissions"' });
     }
-    if (!contract.outputs || Object.keys(contract.outputs).length === 0) {
+    if (!isObjectRecord(contract.outputs) || Object.keys(contract.outputs).length === 0) {
       errors.push({ file: cf, pointer: '/outputs', message: 'fuzzy blocks must declare at least one output field', hint: 'the outputs schema is the prompt contract' });
     }
     if (contract.oracle !== undefined) {
@@ -233,9 +285,6 @@ export function loadBlock(dir) {
     errors: [],
   };
 
-  function i0(argv) {
-    return typeof argv[0] === 'string' && argv[0].includes('{{');
-  }
 }
 
 // Load every block under <root>/blocks. Returns { library: Map, errors }.

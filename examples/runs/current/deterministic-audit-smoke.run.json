@@ -1,0 +1,23 @@
+{
+  "workflow": "deterministic-audit-smoke",
+  "workflowFile": "examples/workflows/deterministic-audit-smoke.workflow.json",
+  "workflowHash": "sha256:fa31c222f26c3e941f60f2051e8631ed676e739fbe51b581b434e077e726240e",
+  "runId": "r-8978f449",
+  "startedAt": "2026-07-10T14:35:09.978Z",
+  "secretSalt": "H7Jfv5fTc-22-mqS7e-Yxg",
+  "inputs": {},
+  "nodes": {
+    "render": {
+      "status": "done",
+      "blockHash": "sha256:41bf4841bd6f6106972efd0be1c1b1246933c7d6871db1c725cac634b3317608",
+      "attempts": 1,
+      "output": {
+        "text": "Blocks protocol 4: deterministic audit smoke\n"
+      }
+    }
+  },
+  "protocol": 4,
+  "output": {
+    "message": "Blocks protocol 4: deterministic audit smoke\n"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "draft": 4,
+  "rfc": "RFC 8785",
+  "vectors": [
+    {
+      "id": "object-order",
+      "inputJson": "{\"z\":1,\"a\":2}",
+      "canonical": "{\"a\":2,\"z\":1}"
+    },
+    {
+      "id": "utf16-non-bmp-order",
+      "inputJson": "{\"\\ue000\":1,\"\\ud83d\\ude00\":2}",
+      "canonical": "{\"😀\":2,\"\":1}"
+    },
+    {
+      "id": "numbers",
+      "inputJson": "{\"large\":1e21,\"negativeZero\":-0,\"rounded\":333333333.33333329}",
+      "canonical": "{\"large\":1e+21,\"negativeZero\":0,\"rounded\":333333333.3333333}"
+    },
+    {
+      "id": "escaping-and-nesting",
+      "inputJson": "{\"text\":\"line\\nquote\\\"slash\\\\\",\"nested\":[true,null,{\"b\":2,\"a\":1}]}",
+      "canonical": "{\"nested\":[true,null,{\"a\":1,\"b\":2}],\"text\":\"line\\nquote\\\"slash\\\\\"}"
+    }
+  ],
+  "invalid": [
+    { "id": "lone-high-surrogate", "inputJson": "{\"value\":\"\\ud800\"}" },
+    { "id": "lone-low-surrogate-key", "inputJson": "{\"\\udc00\":1}" }
+  ]
+}

@@ -4,9 +4,18 @@
   "private": true,
   "type": "module",
   "description": "Skill-shaped no-code blocks that compose into deterministic DAG workflows for agents.",
-  "bin": { "blocks": "cli/bin/blocks" },
-  "engines": { "node": ">=18" },
+  "bin": {
+    "blocks": "cli/bin/blocks"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
-    "test": "node --test 'cli/tests/*.test.js'"
+    "test": "node --test 'cli/tests/*.test.js'",
+    "validate:workflows": "for f in workflows/*.workflow.json; do cli/bin/blocks validate \"$f\" || exit 1; done",
+    "plan:triage": "cli/bin/blocks plan workflows/triage-bug-report.workflow.json",
+    "audit:examples": "for f in examples/runs/current/*.run.json; do cli/bin/blocks audit \"$f\" || exit 1; done",
+    "ci": "npm test && npm run validate:workflows && npm run plan:triage && npm run audit:examples && npm run check:protocol",
+    "check:protocol": "node docs/blocks-protocol-check.mjs && node docs/blocks-protocol-html.mjs PROTOCOL.md | cmp - blocks-protocol.html"
   }
 }

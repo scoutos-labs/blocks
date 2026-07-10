@@ -13,7 +13,7 @@ const BIN = join(HERE, '..', 'bin', 'blocks');
 function blocks(args, { root, expectFail = false } = {}) {
   try {
     const stdout = execFileSync(process.execPath, [BIN, ...args], {
-      encoding: 'utf8', env: { ...process.env, BLOCKS_ROOT: root }, cwd: root,
+      encoding: 'utf8', env: { ...process.env, BLOCKS_ROOT: root, BLOCKS_KEY_HOME: `${root}-keys` }, cwd: root,
     });
     assert.ok(!expectFail, `expected failure but got:\n${stdout}`);
     return { stdout, code: 0 };
@@ -30,13 +30,14 @@ function freshRoot() {
   return root;
 }
 const state = (root, file) => JSON.parse(readFileSync(join(root, file), 'utf8'));
+const privateKey = (root, id) => join(`${root}-keys`, `${id}.private.json`);
 
 test('nested det-only workflow runs to completion; child outputs feed parent wires and outputs', () => {
   const root = freshRoot();
   const { stdout } = blocks(['exec', 'workflows/parent.workflow.json', '--out', 'p.run.json'], { root });
   assert.ok(stdout.includes('run complete'), stdout);
   const parent = state(root, 'p.run.json');
-  assert.equal(parent.protocol, 3, 'run stamped with the runner draft (3) — see draft03');
+  assert.equal(parent.protocol, 4, 'run stamped with the current runner draft');
   const sub = parent.nodes.sub;
   assert.equal(sub.status, 'done');
   assert.ok(sub.childRun.startsWith('runs/child-'), sub.childRun);
@@ -163,8 +164,8 @@ test('new key: public registered with claims, private gitignored and never in re
   const pub = JSON.parse(readFileSync(join(root, 'keys', 'k-test.json'), 'utf8'));
   assert.deepEqual(pub.claims, ['fixture-approver']);
   assert.equal(pub.publicJwk.d, undefined);
-  assert.ok(existsSync(join(root, 'keys', 'k-test.private.json')));
-  assert.ok(readFileSync(join(root, '.gitignore'), 'utf8').includes('keys/*.private.json'));
+  assert.ok(existsSync(privateKey(root, 'k-test')), 'private key written to test key home');
+  assert.equal(existsSync(join(root, 'keys', 'k-test.private.json')), false, 'workspace registry contains no private key');
 });
 
 test('unsigned submission to a claims node: exit 3, no state change, no attempt burned', () => {
@@ -181,7 +182,7 @@ test('unsigned submission to a claims node: exit 3, no state change, no attempt 
 test('a key lacking the required claim is refused with exit 3', () => {
   const root = approvalRoot();
   blocks(['new', 'key', 'k-wrong', '--claims', 'other-claim'], { root });
-  const r = blocks(['record', '--state', 'a.run.json', '--node', 'gate', '--output', 'ok.json', '--sign', 'keys/k-wrong.private.json'], { root, expectFail: true });
+  const r = blocks(['record', '--state', 'a.run.json', '--node', 'gate', '--output', 'ok.json', '--sign', privateKey(root, 'k-wrong')], { root, expectFail: true });
   assert.equal(r.code, 3);
   assert.ok(r.stderr.includes('requires [fixture-approver]'), r.stderr);
 });
@@ -190,17 +191,17 @@ test('a signature not matching the registered public key is refused', () => {
   const root = approvalRoot();
   blocks(['new', 'key', 'k-imposter', '--claims', 'fixture-approver'], { root });
   // graft k-test's registry entry onto k-imposter's private key: sign as k-test without its key
-  const imposterPriv = JSON.parse(readFileSync(join(root, 'keys', 'k-imposter.private.json'), 'utf8'));
-  writeFileSync(join(root, 'keys', 'k-test.private.json'),
+  const imposterPriv = JSON.parse(readFileSync(privateKey(root, 'k-imposter'), 'utf8'));
+  writeFileSync(privateKey(root, 'k-test'),
     JSON.stringify({ keyId: 'k-test', privateJwk: imposterPriv.privateJwk }));
-  const r = blocks(['record', '--state', 'a.run.json', '--node', 'gate', '--output', 'ok.json', '--sign', 'keys/k-test.private.json'], { root, expectFail: true });
+  const r = blocks(['record', '--state', 'a.run.json', '--node', 'gate', '--output', 'ok.json', '--sign', privateKey(root, 'k-test')], { root, expectFail: true });
   assert.equal(r.code, 3);
   assert.ok(r.stderr.includes('does not verify'), r.stderr);
 });
 
 test('signed happy path: approval recorded, gate passes, signature is re-verifiable and deterministic', async () => {
   const root = approvalRoot();
-  const r1 = blocks(['record', '--state', 'a.run.json', '--node', 'gate', '--output', 'ok.json', '--sign', 'keys/k-test.private.json'], { root });
+  const r1 = blocks(['record', '--state', 'a.run.json', '--node', 'gate', '--output', 'ok.json', '--sign', privateKey(root, 'k-test')], { root });
   assert.ok(r1.stdout.includes('signed by k-test'), r1.stdout);
   const run = state(root, 'a.run.json');
   const rec = run.nodes.gate;
@@ -227,7 +228,7 @@ test('signed happy path: approval recorded, gate passes, signature is re-verifia
 test('a signed but schema-invalid answer burns an attempt (auth precedes contract, not replaces it)', () => {
   const root = approvalRoot();
   writeFileSync(join(root, 'bad.json'), JSON.stringify({ approved: 'yes-ish' }));
-  const r = blocks(['record', '--state', 'a.run.json', '--node', 'gate', '--output', 'bad.json', '--sign', 'keys/k-test.private.json'], { root, expectFail: true });
+  const r = blocks(['record', '--state', 'a.run.json', '--node', 'gate', '--output', 'bad.json', '--sign', privateKey(root, 'k-test')], { root, expectFail: true });
   assert.equal(r.code, 1, 'contract failure, not permission refusal');
   assert.ok(r.stderr.includes('attempt 1/3'), r.stderr);
   assert.ok(r.stderr.includes('re-sign'), 'repair guidance mentions re-signing');
@@ -239,7 +240,7 @@ test('voluntary signature on a claims-free fuzzy node is verified and recorded',
   blocks(['new', 'key', 'k-vol', '--claims', 'anything'], { root });
   blocks(['exec', 'workflows/valid.workflow.json', '--out', 'v.run.json'], { root });
   writeFileSync(join(root, 'j.json'), JSON.stringify({ score: 0.9, verdict: 'pass' }));
-  blocks(['record', '--state', 'v.run.json', '--node', 'judge', '--output', 'j.json', '--sign', 'keys/k-vol.private.json'], { root });
+  blocks(['record', '--state', 'v.run.json', '--node', 'judge', '--output', 'j.json', '--sign', privateKey(root, 'k-vol')], { root });
   assert.equal(state(root, 'v.run.json').nodes.judge.approval.keyId, 'k-vol');
 });
 
@@ -252,7 +253,7 @@ test('a run document declaring a future protocol is rejected by exec and record'
   s.protocol = 99;
   writeFileSync(join(root, 'v.run.json'), JSON.stringify(s, null, 2));
   const r1 = blocks(['exec', 'workflows/valid.workflow.json', '--state', 'v.run.json'], { root, expectFail: true });
-  assert.ok(r1.stderr.includes('protocol 99') && r1.stderr.includes('protocol 3'), r1.stderr);
+  assert.ok(r1.stderr.includes('protocol 99') && r1.stderr.includes('protocol 4'), r1.stderr);
   writeFileSync(join(root, 'a.json'), JSON.stringify({ score: 0.5, verdict: 'pass' }));
   const r2 = blocks(['record', '--state', 'v.run.json', '--node', 'judge', '--output', 'a.json'], { root, expectFail: true });
   assert.ok(r2.stderr.includes('protocol 99'), r2.stderr);
@@ -261,15 +262,14 @@ test('a run document declaring a future protocol is rejected by exec and record'
 test('secret inputs must be re-supplied on resume; digests never flow back in', () => {
   const root = freshRoot();
   const wf = JSON.parse(readFileSync(join(root, 'workflows', 'valid.workflow.json'), 'utf8'));
-  wf.inputs.text.secret = true;
-  delete wf.inputs.text.default;
+  wf.inputs.pin = { type: 'string', secret: true };
   writeFileSync(join(root, 'workflows', 'valid.workflow.json'), JSON.stringify(wf));
-  blocks(['exec', 'workflows/valid.workflow.json', '--out', 's.run.json', '--input', 'text=hunter2 secret'], { root });
+  blocks(['exec', 'workflows/valid.workflow.json', '--out', 's.run.json', '--input', 'pin=hunter2 secret'], { root });
   const r = blocks(['exec', 'workflows/valid.workflow.json', '--state', 's.run.json'], { root, expectFail: true });
   assert.equal(r.code, 2);
-  assert.ok(r.stderr.includes('secret input "text" must be re-supplied'), r.stderr);
+  assert.ok(r.stderr.includes('secret input "pin" must be re-supplied'), r.stderr);
   // with the secret re-supplied, the resume proceeds to the fuzzy pause
-  const ok = blocks(['exec', 'workflows/valid.workflow.json', '--state', 's.run.json', '--input', 'text=hunter2 secret'], { root });
+  const ok = blocks(['exec', 'workflows/valid.workflow.json', '--state', 's.run.json', '--input', 'pin=hunter2 secret'], { root });
   assert.ok(ok.stdout.includes('paused at fuzzy node "judge"'), ok.stdout);
 });
 

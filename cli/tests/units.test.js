@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateShape, validateValue } from '../src/schema.js';
+import { checkSchemaDef, validateShape, validateValue } from '../src/schema.js';
 import { parseTemplate, evalTemplate } from '../src/bindings.js';
 import { parseWhen, evalWhen } from '../src/when.js';
 
@@ -27,6 +27,31 @@ test('schema-lite: nested arrays and objects', () => {
   assert.deepEqual(validateValue([{ tag: 'a' }], schema, ''), []);
   const errs = validateValue([{ tag: 1 }], schema, '');
   assert.equal(errs[0].pointer, '/0/tag');
+});
+
+test('schema-lite: bad keyword types, regexes, identifiers, enums, and defaults are definition errors', () => {
+  const errors = [];
+  checkSchemaDef({
+    type: 'object',
+    required: 'yes',
+    secret: 'no',
+    properties: {
+      'bad/name': { type: 'string', pattern: '[' },
+      n: { type: 'number', minimum: '0', maximum: false, enum: [1, 'two'] },
+      d: { type: 'string', default: 5 },
+      a: { type: 'array', items: 'string' },
+      empty: { type: 'boolean', enum: [] },
+    },
+  }, '/inputs/root', errors);
+  assert.ok(errors.some((e) => e.pointer === '/inputs/root/required' && e.message.includes('boolean')));
+  assert.ok(errors.some((e) => e.pointer === '/inputs/root/secret' && e.message.includes('boolean')));
+  assert.ok(errors.some((e) => e.pointer === '/inputs/root/properties/bad~1name' && e.message.includes('field identifier')));
+  assert.ok(errors.some((e) => e.pointer === '/inputs/root/properties/bad~1name/pattern' && e.message.includes('regular expression')));
+  assert.ok(errors.some((e) => e.pointer === '/inputs/root/properties/n/minimum' && e.message.includes('number')));
+  assert.ok(errors.some((e) => e.pointer === '/inputs/root/properties/n/enum/1' && e.message.includes('expected number')));
+  assert.ok(errors.some((e) => e.pointer === '/inputs/root/properties/d/default' && e.message.includes('expected string')));
+  assert.ok(errors.some((e) => e.pointer === '/inputs/root/properties/a/items' && e.message.includes('schema object')));
+  assert.ok(errors.some((e) => e.pointer === '/inputs/root/properties/empty/enum' && e.message.includes('non-empty')));
 });
 
 test('wires: whole-value bindings preserve type', () => {

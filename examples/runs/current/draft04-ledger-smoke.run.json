@@ -1,0 +1,32 @@
+{
+  "workflow": "draft04-ledger-smoke",
+  "workflowFile": "examples/workflows/draft04-ledger-smoke.workflow.json",
+  "workflowHash": "sha256:ab837560f836bde1b5571398062021da454913ecbf3f40fed0805c2fe29028ed",
+  "runId": "r-f3e040f6",
+  "startedAt": "2026-07-10T14:35:54.529Z",
+  "secretSalt": "_UkpC22kzdob4e5Lk388ZQ",
+  "inputs": {
+    "token": "sha256:ca754449f18fa5ef828bab4a2b66dad86230312bf832a0653e7142944f7a6120"
+  },
+  "nodes": {
+    "approve": {
+      "status": "done",
+      "input": {
+        "candidate": "Draft 04 detached approval smoke"
+      },
+      "blockHash": "sha256:f6040447da534a73b75d7bea63ef4e79ed9459fc7f496af8570007a5decdc480",
+      "attempts": 1,
+      "output": {
+        "approved": true,
+        "approver": "k-draft04-example",
+        "reason": "Detached approval fixture for the Draft 04 ledger smoke test."
+      },
+      "approval": {
+        "keyId": "k-draft04-example",
+        "signature": "AZMh-a6nqCbc1ET7-XdxNiJbHq3pf7cZ8k4X_kWY_8gx4avQzBfvJm9_ivBFRrh7bn-hrEv3DHeFpxnqerlxCw"
+      },
+      "capability": "release-judgment-v1"
+    }
+  },
+  "protocol": 4
+}

@@ -1,0 +1,26 @@
+{
+  "name": "draft04-ledger-smoke",
+  "version": 1,
+  "protocol": 4,
+  "inputs": {
+    "token": {
+      "type": "string",
+      "secret": true,
+      "description": "example secret proving salted at-rest persistence"
+    }
+  },
+  "grants": {
+    "run": [],
+    "read": [],
+    "write": []
+  },
+  "nodes": [
+    {
+      "id": "approve",
+      "block": "approve-release@2",
+      "in": {
+        "candidate": "Draft 04 detached approval smoke"
+      }
+    }
+  ]
+}

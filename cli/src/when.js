@@ -43,7 +43,7 @@ function tokenize(text) {
 }
 
 // Parse to { clauses: [{ref, op, literal}], joins: ['and'|'or', ...] }.
-export function parseWhen(text) {
+export function parseWhen(text, { rejectMixed = false } = {}) {
   const tokens = tokenize(text);
   const clauses = [];
   const joins = [];
@@ -77,6 +77,9 @@ export function parseWhen(text) {
     if (!j?.join) throw new Error('clauses must be joined with "and" or "or"');
     joins.push(j.join);
     expectClause();
+  }
+  if (rejectMixed && new Set(joins).size > 1) {
+    throw new Error('a gate must not mix "and" and "or" joins; split the logic into separate gated nodes');
   }
   return { clauses, joins };
 }

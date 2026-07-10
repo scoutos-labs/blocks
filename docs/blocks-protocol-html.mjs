@@ -4,6 +4,9 @@
 import { readFileSync } from 'node:fs';
 
 const md = readFileSync(process.argv[2] ?? 'PROTOCOL.md', 'utf8');
+const draftMeta = /^\*\*Draft (\d+) · (\d{4}-\d{2}-\d{2}) ·/m.exec(md);
+if (!draftMeta) throw new Error('PROTOCOL.md is missing its Draft NN · YYYY-MM-DD banner');
+const [, draft, draftDate] = draftMeta;
 
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 // GitHub-style anchor slugs (same algorithm as the consistency harness)
@@ -103,8 +106,8 @@ const html = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The Blocks Skill Protocol — Draft 01</title>
-<meta name="description" content="Interoperability specification for the Blocks skill protocol: skill-shaped blocks, deterministic DAG workflows, runners, oracles, and composers. Draft 01.">
+<title>The Blocks Skill Protocol — Draft ${draft}</title>
+<meta name="description" content="Interoperability specification for the Blocks skill protocol: skill-shaped blocks, deterministic DAG workflows, runners, oracles, and composers. Draft ${draft}.">
 <style>
   :root { --paper:#F2F5F7; --ink:#16222E; --soft:#45566A; --det:#1B5CA4; --rule:#C2CEDA; --plate:#FBFCFD;
           --mono: ui-monospace,"SF Mono",Menlo,Consolas,monospace;
@@ -135,7 +138,7 @@ const html = `<!doctype html>
 </head>
 <body>
 <main>
-<div class="draft-banner">DRAFT 01 · 2026-07-02 · THE BLOCKS SKILL PROTOCOL · EXPECT BREAKING CHANGES · SOURCE OF TRUTH: PROTOCOL.md</div>
+<div class="draft-banner">DRAFT ${draft} · ${draftDate} · THE BLOCKS SKILL PROTOCOL · EXPECT BREAKING CHANGES · SOURCE OF TRUTH: PROTOCOL.md</div>
 ${out.join('\n')}
 </main>
 </body>

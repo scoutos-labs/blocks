@@ -3,7 +3,7 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
-import { checkSchemaDef } from './schema.js';
+import { checkSchemaDef, FIELD_IDENT_RE } from './schema.js';
 import { parseTemplate, walkStrings } from './bindings.js';
 import { parseWhen } from './when.js';
 import { coveredBy } from './globs.js';
@@ -12,8 +12,16 @@ const ID_RE = /^[a-z][a-z0-9-]*$/;
 const PIN_RE = /^([a-z][a-z0-9-]*)@(\d+)$/;
 const PATH_GLOB_RE = /^(?!\/)(?!.*\.\.)[^\0]*$/;
 
+function isObjectRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function pointerSegment(name) {
+  return String(name).replaceAll('~', '~0').replaceAll('/', '~1');
+}
+
 // The protocol draft this implementation speaks (PROTOCOL.md [VER-4]).
-export const IMPLEMENTED_PROTOCOL = 3;
+export const IMPLEMENTED_PROTOCOL = 4;
 
 // Output declarations embed schema-lite minus default/secret, plus `from`.
 const OUTPUT_DECL_KEYS = ['from', 'type', 'required', 'enum', 'pattern', 'minimum', 'maximum', 'items', 'properties', 'description'];
@@ -41,22 +49,73 @@ export function validateWorkflow(workflow, library, file, ctx = {}) {
   const errors = [];
   const err = (pointer, message, hint) => errors.push({ file, pointer, message, ...(hint ? { hint } : {}) });
 
+  if (!isObjectRecord(workflow)) {
+    err('', 'workflow must be a JSON object');
+    return { errors, order: [] };
+  }
+
   // workflows and nodes are closed documents (PROTOCOL [WFL-6])
   const WF_KEYS = ['name', 'version', 'notes', 'inputs', 'grants', 'nodes', 'outputs', 'protocol'];
   for (const key of Object.keys(workflow)) {
     if (!WF_KEYS.includes(key)) err(`/${key}`, `unknown workflow key "${key}"`, `allowed: ${WF_KEYS.join(', ')}`);
   }
-  for (const key of Object.keys(workflow.grants ?? {})) {
-    if (!['run', 'read', 'write'].includes(key)) err(`/grants/${key}`, `unknown grants key "${key}"`, 'allowed: run, read, write');
-  }
-  if (Array.isArray(workflow.nodes)) {
-    const NODE_KEYS = ['id', 'block', 'workflow', 'in', 'when', 'after', 'notes'];
-    workflow.nodes.forEach((node, i) => {
-      if (node === null || typeof node !== 'object') return;
-      for (const key of Object.keys(node)) {
-        if (!NODE_KEYS.includes(key)) err(`/nodes/${i}/${key}`, `unknown node key "${key}"`, `allowed: ${NODE_KEYS.join(', ')}`);
+
+  let grants = {};
+  if (workflow.grants !== undefined) {
+    if (!isObjectRecord(workflow.grants)) {
+      err('/grants', '"grants" must be an object', '{"run": [], "read": [], "write": []}');
+    } else {
+      grants = workflow.grants;
+      for (const key of Object.keys(grants)) {
+        if (!['run', 'read', 'write'].includes(key)) err(`/grants/${key}`, `unknown grants key "${key}"`, 'allowed: run, read, write');
       }
-    });
+    }
+  }
+
+  const nodesArray = Array.isArray(workflow.nodes) ? workflow.nodes : [];
+  if (workflow.nodes !== undefined && !Array.isArray(workflow.nodes)) {
+    err('/nodes', '"nodes" must be a non-empty array');
+  }
+  const NODE_KEYS = ['id', 'block', 'workflow', 'in', 'when', 'after', 'notes'];
+  nodesArray.forEach((node, i) => {
+    if (!isObjectRecord(node)) {
+      err(`/nodes/${i}`, 'node must be an object');
+      return;
+    }
+    for (const key of Object.keys(node)) {
+      if (!NODE_KEYS.includes(key)) err(`/nodes/${i}/${key}`, `unknown node key "${key}"`, `allowed: ${NODE_KEYS.join(', ')}`);
+    }
+    if (node.in !== undefined && !isObjectRecord(node.in)) {
+      err(`/nodes/${i}/in`, '"in" must be an object mapping input names to bindings or literal values');
+    }
+    if (node.after !== undefined && !Array.isArray(node.after)) {
+      err(`/nodes/${i}/after`, '"after" must be an array of node ids');
+    }
+  });
+
+  let wfInputs = {};
+  if (workflow.inputs !== undefined) {
+    if (!isObjectRecord(workflow.inputs)) {
+      err('/inputs', '"inputs" must be an object mapping field names to schemas');
+    } else {
+      wfInputs = workflow.inputs;
+      for (const [name, schema] of Object.entries(wfInputs)) {
+        const p = `/inputs/${pointerSegment(name)}`;
+        if (!FIELD_IDENT_RE.test(name)) err(p, `field identifier "${name}" must match ${FIELD_IDENT_RE}`);
+        const defErrors = [];
+        checkSchemaDef(schema, p, defErrors);
+        errors.push(...defErrors.map((e) => ({ file, ...e })));
+      }
+    }
+  }
+
+  let workflowOutputs = {};
+  if (workflow.outputs !== undefined) {
+    if (!isObjectRecord(workflow.outputs)) {
+      err('/outputs', '"outputs" must be an object mapping output names to declarations');
+    } else {
+      workflowOutputs = workflow.outputs;
+    }
   }
 
   // protocol field (PROTOCOL [VER-4], [VER-5])
@@ -67,24 +126,18 @@ export function validateWorkflow(workflow, library, file, ctx = {}) {
     err('/protocol', `document declares protocol ${declaredProtocol}; this implementation speaks protocol ${IMPLEMENTED_PROTOCOL}`, 'a newer runner is required for this workflow');
   }
   const usesDraft2 = workflow.outputs !== undefined
-    || (Array.isArray(workflow.nodes) && workflow.nodes.some((n) => n && typeof n === 'object' && n.workflow !== undefined));
+    || nodesArray.some((n) => isObjectRecord(n) && n.workflow !== undefined);
   if (usesDraft2 && declaredProtocol < 2) {
     err('/protocol', 'workflow uses Draft 2 constructs (outputs or workflow nodes) but does not declare "protocol": 2', 'add "protocol": 2 (PROTOCOL [VER-5])');
   }
   let usesDraft3Gates = false; // set while checking gates; judged after the node pass
+  let usesDraft4 = false;
 
   if (typeof workflow.name !== 'string' || !ID_RE.test(workflow.name)) {
     err('/name', `workflow "name" must match ${ID_RE}, got ${JSON.stringify(workflow.name)}`);
   }
   if (!Number.isInteger(workflow.version) || workflow.version < 1) {
     err('/version', '"version" must be a positive integer');
-  }
-
-  const wfInputs = workflow.inputs ?? {};
-  for (const [name, schema] of Object.entries(wfInputs)) {
-    const defErrors = [];
-    checkSchemaDef(schema, `/inputs/${name}`, defErrors);
-    errors.push(...defErrors.map((e) => ({ file, ...e })));
   }
 
   if (!Array.isArray(workflow.nodes) || workflow.nodes.length === 0) {
@@ -94,8 +147,9 @@ export function validateWorkflow(workflow, library, file, ctx = {}) {
 
   // --- pass 1: ids, pins, gather node -> block (or embedded workflow) ---
   const nodes = new Map();
-  workflow.nodes.forEach((node, i) => {
+  nodesArray.forEach((node, i) => {
     const p = `/nodes/${i}`;
+    if (!isObjectRecord(node)) return;
     if (typeof node.id !== 'string' || !ID_RE.test(node.id)) {
       err(`${p}/id`, `node id must match ${ID_RE}, got ${JSON.stringify(node.id)}`);
       return;
@@ -174,6 +228,7 @@ export function validateWorkflow(workflow, library, file, ctx = {}) {
       return;
     }
     const block = library.get(node.block);
+    if (block && Object.values(block.outputs ?? {}).some((schema) => schema.enumFromInput !== undefined)) usesDraft4 = true;
     if (!block) {
       const versions = [...library.keys()].filter((k) => k.startsWith(`${pin[1]}@`));
       err(`${p}/block`, `no block "${node.block}" in the library`, versions.length ? `library has: ${versions.join(', ')}` : `run \`blocks list\` to see available blocks`);
@@ -183,6 +238,7 @@ export function validateWorkflow(workflow, library, file, ctx = {}) {
 
   // --- pass 2: wires, gates, after ---
   const edges = new Map([...nodes.keys()].map((id) => [id, new Set()])); // id -> deps
+  const nodeInputRefs = new Map([...nodes.keys()].map((id) => [id, []])); // id -> refs found under node.in
   const refErrors = (ref, pointer, targetSchema, { interpolated }) => {
     if (ref.kind === 'input') {
       const schema = wfInputs[ref.key];
@@ -216,7 +272,10 @@ export function validateWorkflow(workflow, library, file, ctx = {}) {
 
   for (const { node, i, block } of nodes.values()) {
     const p = `/nodes/${i}`;
-    const bound = node.in ?? {};
+    const bound = isObjectRecord(node.in) ? node.in : {};
+    for (const name of Object.keys(bound)) {
+      if (!FIELD_IDENT_RE.test(name)) err(`${p}/in/${pointerSegment(name)}`, `field identifier "${name}" must match ${FIELD_IDENT_RE}`);
+    }
     if (block) {
       for (const name of Object.keys(block.inputs)) {
         if (block.inputs[name].required !== false && bound[name] === undefined) {
@@ -248,6 +307,7 @@ export function validateWorkflow(workflow, library, file, ctx = {}) {
         const { parts, whole } = parseTemplate(text);
         for (const part of parts) if (part.error) err(bp, part.error, 'wire syntax: {{inputs.<key>}} or {{nodes.<id>.output.<field>}} (SPEC §4)');
         const refs = parts.filter((x) => x.ref);
+        for (const part of refs) nodeInputRefs.get(node.id)?.push({ ref: part.ref, pointer: bp, inputName: name });
         if (whole) {
           const src = refErrors(refs[0].ref, bp, target, { interpolated: false });
           if (src && target && src.type !== 'unknown' && src.type !== target.type) {
@@ -270,7 +330,7 @@ export function validateWorkflow(workflow, library, file, ctx = {}) {
     }
     if (node.when !== undefined) {
       try {
-        const ast = parseWhen(node.when);
+        const ast = parseWhen(node.when, { rejectMixed: declaredProtocol >= 4 });
         for (const clause of ast.clauses) {
           const src = refErrors(clause.ref, `${p}/when`, null, { interpolated: false });
           if (clause.length || clause.op === 'contains') usesDraft3Gates = true;
@@ -295,8 +355,10 @@ export function validateWorkflow(workflow, library, file, ctx = {}) {
         err(`${p}/when`, `gate does not parse: ${e.message}`, "grammar: [#]ref op literal [and|or ...] — e.g. nodes.judge.output.score >= 0.7 (SPEC §5)");
       }
     }
-    for (const [j, dep] of (node.after ?? []).entries()) {
-      if (!nodes.has(dep)) err(`${p}/after/${j}`, `"after" references unknown node "${dep}"`);
+    const after = Array.isArray(node.after) ? node.after : [];
+    for (const [j, dep] of after.entries()) {
+      if (typeof dep !== 'string' || !ID_RE.test(dep)) err(`${p}/after/${j}`, `"after" entries must be node ids matching ${ID_RE}, got ${JSON.stringify(dep)}`);
+      else if (!nodes.has(dep)) err(`${p}/after/${j}`, `"after" references unknown node "${dep}"`);
       else edges.get(node.id)?.add(dep);
     }
   }
@@ -304,11 +366,14 @@ export function validateWorkflow(workflow, library, file, ctx = {}) {
   if (usesDraft3Gates && declaredProtocol < 3) {
     err('/protocol', 'workflow uses Draft 3 gate constructs (contains or #) but does not declare "protocol": 3', 'add "protocol": 3 (PROTOCOL [VER-5])');
   }
+  if (usesDraft4 && declaredProtocol < 4) {
+    err('/protocol', 'workflow uses a Draft 4 construct (enumFromInput) but does not declare "protocol": 4', 'add "protocol": 4 (PROTOCOL [VER-5])');
+  }
 
   // --- pass 2.5: workflow output declarations (PROTOCOL §9.1) ---
-  for (const [name, decl] of Object.entries(workflow.outputs ?? {})) {
-    const p = `/outputs/${name}`;
-    if (!/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(name)) err(p, `output name "${name}" is not a valid identifier`);
+  for (const [name, decl] of Object.entries(workflowOutputs)) {
+    const p = `/outputs/${pointerSegment(name)}`;
+    if (!FIELD_IDENT_RE.test(name)) err(p, `field identifier "${name}" must match ${FIELD_IDENT_RE}`);
     if (decl === null || typeof decl !== 'object' || Array.isArray(decl)) {
       err(p, 'an output declaration must be an object', '{"from": "{{nodes.x.output.y}}", "type": "string"}');
       continue;
@@ -321,7 +386,7 @@ export function validateWorkflow(workflow, library, file, ctx = {}) {
     if (decl.from === undefined) { err(`${p}/from`, 'output declaration needs "from" (a wire)', 'PROTOCOL [OUT-1]'); continue; }
     const { from, ...schema } = decl;
     const defErrors = [];
-    checkSchemaDef(schema, p, defErrors);
+    checkSchemaDef(schema, p, defErrors, { allowDefault: false, allowSecret: false });
     errors.push(...defErrors.map((e) => ({ file, ...e })));
     // the declaration is the wire's target: same rules as a node input
     const checkOutWire = (text, target) => {
@@ -369,10 +434,60 @@ export function validateWorkflow(workflow, library, file, ctx = {}) {
   };
   for (const id of nodes.keys()) if (!visit(id, [])) break;
 
+  // --- pass 3.5: conservative secret-taint validation for fuzzy/embedded nodes ---
+  // Fuzzy node inputs are printed and persisted as oracle prompts. Treat every
+  // secret workflow input as tainted; any node consuming tainted data taints all
+  // of its outputs, so transitive deterministic derivations are rejected too.
+  if (order.length === nodes.size) {
+    const secretInputs = new Set(Object.entries(wfInputs)
+      .filter(([, schema]) => schema?.secret === true)
+      .map(([name]) => name));
+    const taintedNodes = new Set();
+    const taintMessage = 'secret-derived data cannot be wired into fuzzy nodes';
+    const isTaintedRef = (ref) => ref.kind === 'input'
+      ? secretInputs.has(ref.key)
+      : taintedNodes.has(ref.node);
+
+    for (const id of order) {
+      const entry = nodes.get(id);
+      if (!entry?.block) continue;
+      const taintedRefs = (nodeInputRefs.get(id) ?? []).filter(({ ref }) => isTaintedRef(ref));
+      if (taintedRefs.length === 0) continue;
+
+      const seen = new Set();
+      if (entry.block.kind === 'fuzzy') {
+        for (const { pointer } of taintedRefs) {
+          if (seen.has(pointer)) continue;
+          seen.add(pointer);
+          err(pointer, taintMessage, 'route secrets only through deterministic nodes; fuzzy inputs are persisted and shown to the oracle');
+        }
+      } else if (entry.block.kind === 'workflow') {
+        for (const { pointer, inputName } of taintedRefs) {
+          if (seen.has(pointer)) continue;
+          seen.add(pointer);
+          const childInput = entry.block.inputs?.[inputName];
+          if (childInput && childInput.secret !== true) {
+            err(pointer, 'secret-derived data cannot be wired into a non-secret child workflow input', 'mark the child workflow input secret, or keep this value out of the embedded workflow');
+          }
+        }
+      }
+
+      taintedNodes.add(id);
+    }
+  }
+
   // --- pass 4: grants model (SPEC §7) ---
-  const grants = workflow.grants ?? {};
+  const grantList = (key) => Array.isArray(grants[key]) ? grants[key] : [];
+  for (const key of ['run', 'read', 'write']) {
+    if (grants[key] !== undefined && !Array.isArray(grants[key])) {
+      err(`/grants/${key}`, `"grants.${key}" must be an array`, 'use [] for none');
+    }
+    for (const [j, value] of grantList(key).entries()) {
+      if (typeof value !== 'string' || value === '') err(`/grants/${key}/${j}`, `"grants.${key}" entries must be non-empty strings`);
+    }
+  }
   for (const key of ['read', 'write']) {
-    for (const [j, glob] of (grants[key] ?? []).entries()) {
+    for (const [j, glob] of grantList(key).entries()) {
       if (typeof glob !== 'string' || !PATH_GLOB_RE.test(glob)) {
         err(`/grants/${key}/${j}`, `grant path glob ${JSON.stringify(glob)} is invalid`, 'workspace-relative, no absolute paths, no ".."');
       }
@@ -393,7 +508,7 @@ export function validateWorkflow(workflow, library, file, ctx = {}) {
     }
   }
   for (const key of ['run', 'read', 'write']) {
-    for (const [j, v] of (grants[key] ?? []).entries()) {
+    for (const [j, v] of grantList(key).entries()) {
       const covered = key === 'run'
         ? declared.run.has(v)
         : [...declared[key]].some((blockGlob) => coveredBy(v, blockGlob));
@@ -407,13 +522,13 @@ export function validateWorkflow(workflow, library, file, ctx = {}) {
   for (const { node, i, block } of nodes.values()) {
     if (block?.kind !== 'workflow') continue;
     for (const bin of block.childGrants.run ?? []) {
-      if (!(grants.run ?? []).includes(bin)) {
+      if (!grantList('run').includes(bin)) {
         err('/grants/run', `embedded workflow "${node.workflow}" (node "${node.id}") grants "${bin}" but this workflow does not`, `add "${bin}" to grants.run — parents co-sign everything a child may touch`);
       }
     }
     for (const key of ['read', 'write']) {
       for (const g of block.childGrants[key] ?? []) {
-        if (!(grants[key] ?? []).some((p) => coveredBy(g, p))) {
+        if (!grantList(key).some((p) => coveredBy(g, p))) {
           err(`/grants/${key}`, `embedded workflow "${node.workflow}" (node "${node.id}") grants "${g}" but no parent grant covers it`, `add a covering glob to grants.${key}`);
         }
       }
@@ -424,13 +539,13 @@ export function validateWorkflow(workflow, library, file, ctx = {}) {
     if (block?.kind !== 'deterministic') continue;
     if (block.exec?.argv) {
       const bin = block.exec.argv[0];
-      if (!(grants.run ?? []).includes(bin)) {
+      if (!grantList('run').includes(bin)) {
         err(`/grants/run`, `node "${node.id}" (${node.block}) needs to run "${bin}" but the workflow does not grant it`, `add "${bin}" to grants.run`);
       }
     }
     for (const key of ['read', 'write']) {
       for (const glob of block.permissions?.[key] ?? []) {
-        if ((block.permissions[key] ?? []).length > 0 && (grants[key] ?? []).length === 0 && key === 'write') {
+        if ((block.permissions[key] ?? []).length > 0 && grantList(key).length === 0 && key === 'write') {
           err(`/grants/write`, `node "${node.id}" (${node.block}) declares write access but the workflow grants none`, `add the intended paths to grants.write`);
           break;
         }

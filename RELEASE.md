@@ -1,11 +1,15 @@
-# Release
+# Blocks Protocol Draft 04
 
-approved by k-tom — Six commits, six real hashes, judged 0.9 upstream; the Draft 03 changelog is accurate and safe to cut.
+Draft 04 is the trustworthy-ledger release.
 
-# Changelog
+It makes cryptographic evidence reproducible across implementations, supports detached approvals without runner access to private keys, salts persisted secret digests, closes classifier and gate ambiguity, and adds read-only audit plus machine-readable run discovery.
 
-_range: HEAD~6..HEAD — judged 0.9_
+Validation at release:
 
-## Internal
-- Draft 02 wrap-up: adversarial-review repairs (5312196) and the final ship with composition and signed approvals (648db14)
-- Draft 03, harness-first: PRD and plan approval (fa4d5fb), red harness and test suite for capability, gate operators, and the hash split (f7838b4), the implementation of all three (4d1af75), and the Draft 03 protocol text (3d4f600)
+- 119 tests passing
+- 147 gapless protocol requirement IDs
+- all root workflows valid
+- current example ledgers audit cleanly
+- generated protocol HTML byte-matches `PROTOCOL.md`
+
+The protocol remains a draft and may introduce breaking changes.

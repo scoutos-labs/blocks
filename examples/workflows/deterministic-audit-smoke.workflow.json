@@ -1,0 +1,31 @@
+{
+  "name": "deterministic-audit-smoke",
+  "version": 1,
+  "protocol": 4,
+  "notes": "Small deterministic workflow used as the committed audit smoke fixture.",
+  "inputs": {},
+  "grants": {
+    "run": [],
+    "read": [],
+    "write": []
+  },
+  "outputs": {
+    "message": {
+      "from": "{{nodes.render.output.text}}",
+      "type": "string"
+    }
+  },
+  "nodes": [
+    {
+      "id": "render",
+      "block": "render-template@1",
+      "in": {
+        "template": "Blocks protocol {protocol}: {claim}\n",
+        "values": {
+          "protocol": 4,
+          "claim": "deterministic audit smoke"
+        }
+      }
+    }
+  ]
+}

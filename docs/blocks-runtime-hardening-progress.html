@@ -1,0 +1,43 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Blocks Runtime Hardening Progress</title><style>:root{color-scheme:light dark;--bg:#0d1117;--panel:#161b22;--text:#e6edf3;--muted:#9da7b3;--line:#30363d;--blue:#58a6ff;--amber:#d29922}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,sans-serif}main{max-width:1180px;margin:auto;padding:36px 22px 70px}h1{margin:.2rem 0}a{color:var(--blue)}.status{display:inline-block;border:1px solid var(--amber);color:var(--amber);border-radius:999px;padding:3px 10px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:14px 0}table{width:100%;border-collapse:collapse}th,td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:10px}code,pre{background:#0005;border:1px solid var(--line);border-radius:5px}code{padding:1px 5px}pre{padding:10px;white-space:pre-wrap}.muted{color:var(--muted)}</style></head><body><main><span class="status">complete</span><h1>Blocks runtime hardening · progress</h1><p class="muted">Source of truth: <a href="blocks-runtime-hardening-prd.html">blocks-runtime-hardening-prd.html</a>. Reviewer roles: <code>planner</code> (fresh context, advisory) and <code>reviewer</code> (strict read-only gate).</p>
+<div class="panel"><h2>Step ledger</h2><table><thead><tr><th>Step</th><th>Status</th><th>Acceptance/evidence</th><th>Repairs</th></tr></thead><tbody>
+<tr><td>1 · Immutable resume and fuzzy pause</td><td>pass</td><td><code>npm test</code>: 81/81. Added five regression tests covering immutable resume flags, typed/digest-checked secrets, idempotent pauses, and block/input drift without state mutation.</td><td>0</td></tr>
+<tr><td>2 · Filesystem boundaries</td><td>pass</td><td><code>npm test</code>: 85/85. Effective read grants enforced; symlink read/write escapes refused; entry traversal/absolute/symlink rejected; private temporary inputs cleaned.</td><td>0</td></tr>
+<tr><td>3 · Validator hardening</td><td>pass after repair 2</td><td>Malformed containers, identifiers, schema keywords/regex/defaults, and argv forms return precise errors. Conservative secret taint blocks direct, nested, interpolated, and transitive secret-derived fuzzy inputs before execution.</td><td>1</td></tr>
+<tr><td>4 · Static plan</td><td>pass</td><td><code>npm test</code>: 91/91. Required-input triage plan succeeds without inputs; state planning needs no secret and does not mutate; record guidance appears only for reached fuzzy nodes.</td><td>0</td></tr>
+<tr><td>5 · Run audit</td><td>pass after repair 1</td><td>Audit passes deterministic, fuzzy, signed/attested, and nested runs; recomputes fuzzy pause inputs and detects ledger/input/hash/output/child/signature/claim/capability/path/protocol tampering; read-only and secret-safe tests pass.</td><td>1</td></tr>
+<tr><td>6 · Docs, examples, CI</td><td>pass</td><td><code>npm run ci</code>: PASS; 103/103 tests, workflows 3/3, static triage plan, and current curated audit. README/SPEC/skills current; protocol-1/2 runs isolated under legacy; Node 18/20/22 CI added.</td><td>0</td></tr>
+</tbody></table></div>
+<div class="panel"><h2>Baseline</h2><pre>2026-07-09 · npm test · PASS · 76/76
+Working tree had unrelated changes before this loop:
+ M docs/blocks-explainer.html
+?? blocks-protocol.html
+?? context.md
+?? docs/blocks-explainer-v2.html
+?? docs/blocks-explainer.html.bak</pre></div>
+<div class="panel"><h2>Plan gate</h2><p><strong>PASS.</strong> Strict reviewer marked definition, coverage, research, criteria, privacy, non-goals, and rubric as pass; validation was uncertain only because audit fixture paths do not exist until implementation. No blockers.</p></div>
+<div class="panel"><h2>Validation log</h2><pre>Step 1 · 2026-07-09 · npm test · PASS · 81/81
+Changed: cli/src/run.js, cli/tests/run.test.js
+
+Step 5 · 2026-07-09 · npm test · PASS · 96/96
+Changed: cli/src/audit.js, cli/bin/blocks, cli/src/run.js, cli/tests/audit.test.js
+Positive/negative, read-only, path-safe, and secret-safe audit evidence passed.
+
+Step 6 · 2026-07-09 · npm run ci · PASS
+103/103 tests; workflows 3/3; static triage plan; current curated audit
+Changed: README.md, SPEC.md, runner/composer skills, package scripts, examples current/legacy, .github/workflows/ci.yml
+State-mutation refusals verified byte-identical by tests.
+
+Step 2 · 2026-07-09 · npm test · PASS · 85/85
+Changed: cli/src/run.js, cli/src/loader.js, blocks/read-file/run.mjs, blocks/write-file/run.mjs, cli/tests/run.test.js
+Read grants, symlink escape, entry containment, temp privacy/cleanup verified.
+
+Step 3 · 2026-07-09 · npm test · PASS · 88/88
+Workflow validation sweep · PASS · 3/3
+Changed: cli/src/schema.js, cli/src/validate.js, cli/src/loader.js, cli/tests/units.test.js, cli/tests/validate.test.js
+
+Step 4 · 2026-07-09 · npm test · PASS · 91/91
+Manual triage plan without input · PASS
+Changed: cli/src/run.js, cli/tests/run.test.js</pre></div>
+<div class="panel"><h2>Reviewer findings</h2><p><strong>Repair 1 passed:</strong> audit recomputes fuzzy inputs; paused/completed tampering is detected without leaking values.</p><p><strong>Repair 2 passed:</strong> conservative secret taint rejects direct, nested, interpolated, transitive, and unsafe child-workflow secret flow into fuzzy nodes before run creation.</p><p><strong>Final judge:</strong> no blockers. Correctness 5/5; security/privacy 4/5; simplicity 4/5; maintainability 4/5; taste 4/5; originality 4/5.</p></div><div class="panel"><h2>Residual risks</h2><ul><li>Node 18 lacks the modern permission model; block-level path fencing must remain sufficient.</li><li><code>network: false</code> is declared, not enforced.</li><li>Historical run hashes are draft-scoped and must not be silently restamped.</li></ul></div>
+<div class="panel"><h2>Checkpoints</h2><p><code>begin</code> · 2026-07-09 · plan drafted.</p><p><code>plan-approved</code> · 2026-07-09 · reviewer found no blockers.</p><p><code>step-1-done</code> · 2026-07-09 · 81/81 tests.</p><p><code>step-2-done</code> · 2026-07-09 · 85/85 tests.</p><p><code>step-3-done</code> · 2026-07-09 · 88/88 tests and workflows 3/3.</p><p><code>step-4-done</code> · 2026-07-09 · 91/91 tests and static triage plan pass.</p><p><code>step-5-done</code> · 2026-07-09 · 96/96 tests; audit verifier pass.</p><p><code>step-6-done</code> · 2026-07-09 · local CI-equivalent pass.</p><p><code>complete</code> · 2026-07-09 · final <code>npm run ci</code> pass (103/103); reviewer no blockers; no staged files.</p></div>
+<div class="panel"><h2>Final outcome</h2><p><strong>PASS.</strong> All PRD steps and repair gates are complete. Final evidence: <code>npm run ci</code> passed 103 tests, 3 workflow validations, static required-input planning, and current example audit; <code>git diff --check</code> passed; no files are staged.</p></div></main></body></html>

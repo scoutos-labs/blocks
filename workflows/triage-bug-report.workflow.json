@@ -1,6 +1,7 @@
 {
   "name": "triage-bug-report",
   "version": 1,
+  "protocol": 4,
   "notes": "Read a bug report, extract the facts, classify severity, and route a triage note to p1/ or backlog/.",
   "inputs": {
     "report": { "type": "string", "description": "workspace-relative path to the bug report file" }

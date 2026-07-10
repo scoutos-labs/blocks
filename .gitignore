@@ -1,4 +1,11 @@
 /runs/
 node_modules/
 .DS_Store
+.env
+.env.*
+!.env.example
 keys/*.private.json
+**/*.private.json
+/context.md
+/docs/*.bak
+/docs/blocks-explainer-v2.html

@@ -19,7 +19,7 @@ const { library } = loadLibrary(ROOT);
 function blocks(args, { root, expectFail = false } = {}) {
   try {
     const stdout = execFileSync(process.execPath, [BIN, ...args], {
-      encoding: 'utf8', env: { ...process.env, BLOCKS_ROOT: root }, cwd: root,
+      encoding: 'utf8', env: { ...process.env, BLOCKS_ROOT: root, BLOCKS_KEY_HOME: `${root}-keys` }, cwd: root,
     });
     assert.ok(!expectFail, `expected failure but got:\n${stdout}`);
     return { stdout, code: 0 };
@@ -34,6 +34,7 @@ function freshRoot() {
   return root;
 }
 const state = (root, f) => JSON.parse(readFileSync(join(root, f), 'utf8'));
+const privateKey = (root, id) => join(`${root}-keys`, `${id}.private.json`);
 
 // ---------- gates: contains + #ref ----------
 
@@ -135,12 +136,12 @@ test('det prose edits no longer register as drift; fuzzy prose edits still do', 
 
 // ---------- protocol stamping + cross-draft refusal ----------
 
-test('new runs stamp protocol 3, even for protocol-2/unversioned workflows', () => {
+test('new runs stamp the current protocol, even for protocol-2/unversioned workflows', () => {
   const root = freshRoot();
   blocks(['exec', 'workflows/valid.workflow.json', '--out', 'v.run.json'], { root });
-  assert.equal(state(root, 'v.run.json').protocol, 3, 'unversioned workflow run stamped 3');
+  assert.equal(state(root, 'v.run.json').protocol, 4, 'unversioned workflow run stamped 4');
   blocks(['exec', 'workflows/parent.workflow.json', '--out', 'p.run.json'], { root });
-  assert.equal(state(root, 'p.run.json').protocol, 3, 'protocol-2 workflow run stamped 3');
+  assert.equal(state(root, 'p.run.json').protocol, 4, 'protocol-2 workflow run stamped 4');
 });
 
 test('resume/record into a run declaring protocol < 3 is refused', () => {
@@ -198,28 +199,28 @@ test('attestation matrix: missing→2 no burn; mismatch→2 no burn; ok+bad-sig�
   const root = capRoot();
   const before = state(root, 'a.run.json').nodes.gate;
 
-  const miss = blocks(['record', '--state', 'a.run.json', '--node', 'gate', '--output', 'ok.json', '--sign', 'keys/k-test.private.json'], { root, expectFail: true });
+  const miss = blocks(['record', '--state', 'a.run.json', '--node', 'gate', '--output', 'ok.json', '--sign', privateKey(root, 'k-test')], { root, expectFail: true });
   assert.equal(miss.code, 2, `missing attest: ${miss.stderr}`);
   assert.ok(miss.stderr.includes('--attest'), miss.stderr);
 
-  const mis = blocks(['record', '--state', 'a.run.json', '--node', 'gate', '--output', 'ok.json', '--sign', 'keys/k-test.private.json', '--attest', 'wrong-cap-v9'], { root, expectFail: true });
+  const mis = blocks(['record', '--state', 'a.run.json', '--node', 'gate', '--output', 'ok.json', '--sign', privateKey(root, 'k-test'), '--attest', 'wrong-cap-v9'], { root, expectFail: true });
   assert.equal(mis.code, 2, mis.stderr);
 
   blocks(['new', 'key', 'k-nope', '--claims', 'other-claim'], { root });
-  const badsig = blocks(['record', '--state', 'a.run.json', '--node', 'gate', '--output', 'ok.json', '--sign', 'keys/k-nope.private.json', '--attest', 'fixture-judgment-v1'], { root, expectFail: true });
+  const badsig = blocks(['record', '--state', 'a.run.json', '--node', 'gate', '--output', 'ok.json', '--sign', privateKey(root, 'k-nope'), '--attest', 'fixture-judgment-v1'], { root, expectFail: true });
   assert.equal(badsig.code, 3, 'attest ok, wrong claims → permission class');
 
   assert.deepEqual(state(root, 'a.run.json').nodes.gate, before, 'no state change, no burn across all refusals');
 
   writeFileSync(join(root, 'bad.json'), JSON.stringify({ approved: 'yes-ish' }));
-  const burn = blocks(['record', '--state', 'a.run.json', '--node', 'gate', '--output', 'bad.json', '--sign', 'keys/k-test.private.json', '--attest', 'fixture-judgment-v1'], { root, expectFail: true });
+  const burn = blocks(['record', '--state', 'a.run.json', '--node', 'gate', '--output', 'bad.json', '--sign', privateKey(root, 'k-test'), '--attest', 'fixture-judgment-v1'], { root, expectFail: true });
   assert.equal(burn.code, 1);
   assert.equal(state(root, 'a.run.json').nodes.gate.attempts, 1, 'valid ceremony + bad schema burns');
 });
 
 test('attested happy path: capability recorded beside approval; voluntary attestation recorded', () => {
   const root = capRoot();
-  const r = blocks(['record', '--state', 'a.run.json', '--node', 'gate', '--output', 'ok.json', '--sign', 'keys/k-test.private.json', '--attest', 'fixture-judgment-v1'], { root });
+  const r = blocks(['record', '--state', 'a.run.json', '--node', 'gate', '--output', 'ok.json', '--sign', privateKey(root, 'k-test'), '--attest', 'fixture-judgment-v1'], { root });
   assert.ok(r.stdout.includes('signed by k-test'), r.stdout);
   const rec = state(root, 'a.run.json').nodes.gate;
   assert.equal(rec.capability, 'fixture-judgment-v1');

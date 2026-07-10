@@ -53,6 +53,69 @@ test('whole-value wire type mismatch is rejected', () => {
   assert.ok(e.message.includes('number') && e.message.includes('string'));
 });
 
+function validateInline(workflow, extraBlocks = []) {
+  const lib = new Map(library);
+  for (const [pin, block] of extraBlocks) lib.set(pin, block);
+  return validateWorkflow(workflow, lib, join(ROOT, 'workflows', `${workflow.name}.workflow.json`));
+}
+
+const SECRET_TAINT_MESSAGE = 'secret-derived data cannot be wired into fuzzy nodes';
+
+function secretWorkflowWith(nodes) {
+  return {
+    name: 'secret-taint', version: 1,
+    inputs: { token: { type: 'string', secret: true } },
+    grants: { run: ['printf'], read: [], write: [] },
+    nodes,
+  };
+}
+
+test('secret-taint validation rejects direct, interpolated, and nested secret input bindings into fuzzy nodes', () => {
+  for (const [label, workflow, extraBlocks, pointer] of [
+    ['direct', secretWorkflowWith([
+      { id: 'judge', block: 'fx-judge@1', in: { candidate: '{{inputs.token}}' } },
+    ]), [], '/nodes/0/in/candidate'],
+    ['interpolated', secretWorkflowWith([
+      { id: 'judge', block: 'fx-judge@1', in: { candidate: 'prefix {{inputs.token}}' } },
+    ]), [], '/nodes/0/in/candidate'],
+    ['nested', secretWorkflowWith([
+      { id: 'judge', block: 'fx-object@1', in: { payload: { message: '{{inputs.token}}' } } },
+    ]), [[
+      'fx-object@1',
+      { name: 'fx-object', version: 1, kind: 'fuzzy', inputs: { payload: { type: 'object' } }, outputs: { verdict: { type: 'string' } } },
+    ]], '/nodes/0/in/payload'],
+  ]) {
+    const { errors } = validateInline(workflow, extraBlocks);
+    assert.ok(errors.some((e) => e.pointer === pointer && e.message === SECRET_TAINT_MESSAGE), label);
+  }
+});
+
+test('secret-taint validation rejects transitive deterministic flow into fuzzy nodes', () => {
+  const { errors } = validateInline(secretWorkflowWith([
+    { id: 'first', block: 'echo-text@1', in: { text: '{{inputs.token}}' } },
+    { id: 'second', block: 'echo-text@1', in: { text: '{{nodes.first.output.text}}' } },
+    { id: 'judge', block: 'fx-judge@1', in: { candidate: '{{nodes.second.output.text}}' } },
+  ]));
+  assert.ok(errors.some((e) => e.pointer === '/nodes/2/in/candidate' && e.message === SECRET_TAINT_MESSAGE));
+});
+
+test('secret-taint validation allows secret input in deterministic-only workflows', () => {
+  const { errors, order } = validateInline(secretWorkflowWith([
+    { id: 'echo', block: 'echo-text@1', in: { text: '{{inputs.token}}' } },
+  ]));
+  assert.deepEqual(errors, []);
+  assert.deepEqual(order, ['echo']);
+});
+
+test('secret-taint validation rejects tainted parent data wired to non-secret child workflow inputs', () => {
+  const file = join(ROOT, 'workflows', 'parent.workflow.json');
+  const { workflow } = parseWorkflowFile(file);
+  const wf = structuredClone(workflow);
+  wf.inputs.text.secret = true;
+  const { errors } = validateWorkflow(wf, library, file);
+  assert.ok(errors.some((e) => e.pointer === '/nodes/0/in/text' && e.message.includes('non-secret child workflow input')));
+});
+
 test('ordering comparison on a string ref fails the gate check', () => {
   const { errors } = check('bad-when');
   assert.ok(errors.some((e) => e.pointer.endsWith('/when')));
@@ -104,6 +167,28 @@ test('every error carries file and pointer', () => {
   }
 });
 
+test('malformed workflow containers report structured errors instead of throwing', () => {
+  assert.doesNotThrow(() => validateWorkflow(null, library, 'bad.workflow.json'));
+  const top = validateWorkflow([], library, 'bad.workflow.json');
+  assert.ok(top.errors.some((e) => e.pointer === '' && e.message.includes('JSON object')));
+
+  const malformed = {
+    name: 'valid',
+    version: 1,
+    inputs: [],
+    grants: 'all',
+    nodes: [null, [], { id: 'echo', block: 'echo-text@1', in: [], after: {} }],
+    outputs: [],
+  };
+  const { errors } = validateWorkflow(malformed, library, 'bad.workflow.json');
+  assert.ok(errors.some((e) => e.pointer === '/inputs' && e.message.includes('object')));
+  assert.ok(errors.some((e) => e.pointer === '/grants' && e.message.includes('object')));
+  assert.ok(errors.some((e) => e.pointer === '/nodes/0' && e.message.includes('object')));
+  assert.ok(errors.some((e) => e.pointer === '/nodes/2/in' && e.message.includes('object')));
+  assert.ok(errors.some((e) => e.pointer === '/nodes/2/after' && e.message.includes('array')));
+  assert.ok(errors.some((e) => e.pointer === '/outputs' && e.message.includes('object')));
+});
+
 test('unknown contract keys, unknown exec keys, and capture-on-entry are rejected', async () => {
   const { mkdtempSync, cpSync, readFileSync: rf, writeFileSync: wfs } = await import('node:fs');
   const { tmpdir } = await import('node:os');
@@ -126,6 +211,35 @@ test('unknown contract keys, unknown exec keys, and capture-on-entry are rejecte
   wfs(join(dir2, 'contract.json'), JSON.stringify(wc));
   const r2 = loadBlock(dir2);
   assert.ok(r2.errors.some((e) => e.message.includes('"capture" applies only to the argv variant')));
+});
+
+test('contract containers and argv are hardened with precise validation errors', async () => {
+  const { mkdtempSync, cpSync, readFileSync: rf, writeFileSync: wfs } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { loadBlock } = await import('../src/loader.js');
+
+  const badShape = join(mkdtempSync(join(tmpdir(), 'blocks-contract-')), 'echo-text');
+  cpSync(join(ROOT, 'blocks', 'echo-text'), badShape, { recursive: true });
+  wfs(join(badShape, 'contract.json'), '[]');
+  const shaped = loadBlock(badShape);
+  assert.ok(shaped.errors.some((e) => e.pointer === '' && e.message.includes('JSON object')));
+
+  const dir = join(mkdtempSync(join(tmpdir(), 'blocks-argv-')), 'echo-text');
+  cpSync(join(ROOT, 'blocks', 'echo-text'), dir, { recursive: true });
+  const cfile = join(dir, 'contract.json');
+  const contract = JSON.parse(rf(cfile, 'utf8'));
+  contract.exec.argv = [];
+  wfs(cfile, JSON.stringify(contract));
+  const empty = loadBlock(dir);
+  assert.ok(empty.errors.some((e) => e.pointer === '/exec/argv' && e.message.includes('non-empty')));
+
+  contract.exec.argv = ['{{inputs.text}}', 'prefix {{inputs.text}}', '{{bad.ref}}', '{{inputs.missing}}'];
+  wfs(cfile, JSON.stringify(contract));
+  const malformed = loadBlock(dir);
+  assert.ok(malformed.errors.some((e) => e.pointer === '/exec/argv/0' && e.message.includes('literal non-empty')));
+  assert.ok(malformed.errors.some((e) => e.pointer === '/exec/argv/1' && e.message.includes('whole argv element')));
+  assert.ok(malformed.errors.some((e) => e.pointer === '/exec/argv/2' && e.message.includes('invalid binding ref')));
+  assert.ok(malformed.errors.some((e) => e.pointer === '/exec/argv/3' && e.message.includes('declared input')));
 });
 
 // ---------- Draft 02: composition, outputs, protocol ----------
@@ -162,7 +276,7 @@ test('a protocol newer than implemented is rejected naming both numbers', () => 
   future.protocol = 99;
   const { errors } = validateWorkflow(future, library, file);
   const e = errors.find((x) => x.pointer === '/protocol');
-  assert.ok(e && e.message.includes('99') && e.message.includes('3'), JSON.stringify(e));
+  assert.ok(e && e.message.includes('99') && e.message.includes('4'), JSON.stringify(e));
 });
 
 test('output declarations: type mismatch, input-only keys, missing from', () => {

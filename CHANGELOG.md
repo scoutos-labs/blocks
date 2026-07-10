@@ -1,7 +1,27 @@
 # Changelog
 
-_range: HEAD~6..HEAD — judged 0.9_
+## 2026-07-10 — Protocol Draft 04
 
-## Internal
-- Draft 02 wrap-up: adversarial-review repairs (5312196) and the final ship with composition and signed approvals (648db14)
-- Draft 03, harness-first: PRD and plan approval (fa4d5fb), red harness and test suite for capability, gate operators, and the hash split (f7838b4), the implementation of all three (4d1af75), and the Draft 03 protocol text (3d4f600)
+- Added RFC 8785 canonical JSON and language-neutral conformance vectors.
+- Added candidate-bound detached approvals and external private-key custody.
+- Added salted secret persistence and immutable resume checks.
+- Added `enumFromInput` for closed classifier outputs.
+- Draft-4 gates now reject mixed `and`/`or` joins.
+- Added atomic run-state replacement, machine-readable execution status, and `blocks runs` discovery.
+- Added read-only protocol-3/4 audit support.
+- Hardened filesystem grants, symlink fencing, secret-taint validation, static planning, docs, examples, and CI.
+
+## 2026-07-03 — Protocol Draft 03
+
+- Added oracle capability attestation.
+- Added `contains` and `#ref` gate constructs.
+- Split deterministic and fuzzy block-hash preimages.
+
+## 2026-07-02 — Protocol Draft 02
+
+- Added workflow composition and typed workflow outputs.
+- Added signed approvals and explicit protocol versioning.
+
+## 2026-07-02 — Protocol Draft 01
+
+- Published the initial Blocks interoperability protocol and reference runner.

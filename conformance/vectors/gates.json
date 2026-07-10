@@ -1,0 +1,11 @@
+{
+  "draft": 4,
+  "vectors": [
+    { "id": "and", "expression": "nodes.a.output.ok == true and nodes.b.output.ok == true", "result": true },
+    { "id": "contains", "expression": "nodes.a.output.labels contains 'p1'", "result": true },
+    { "id": "length", "expression": "#nodes.a.output.labels >= 2", "result": true }
+  ],
+  "invalid": [
+    { "id": "mixed-joins", "expression": "nodes.a.output.ok == true or nodes.b.output.ok == true and nodes.c.output.ok == true", "error": "must not mix and and or" }
+  ]
+}

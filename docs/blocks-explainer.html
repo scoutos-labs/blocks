@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Blocks — deterministic workflows any agent can drive</title>
-<meta name="description" content="An animated engineering sheet explaining Blocks: skill-shaped blocks wired into deterministic DAG workflows, where the CLI runs the repeatable parts, any agent answers the fuzzy ones, workflows compose like functions, and approvals demand a key.">
+<meta name="description" content="An engineering sheet explaining Blocks: skill-shaped blocks wired into deterministic workflows, where the CLI runs the repeatable parts and any agent answers the fuzzy ones.">
 <style>
   :root {
     --paper: #F2F5F7;
@@ -221,23 +221,24 @@
   <header class="titleblock" role="banner">
     <div class="tb-name">
       <b>BLOCKS</b>
-      <span>DETERMINISTIC DAG WORKFLOWS · SKILL-SHAPED PARTS · ANY-AGENT ORACLE</span>
+      <span>TYPED BLOCKS · WRITTEN WORKFLOWS · ANY ORACLE</span>
     </div>
     <div class="tb-meta">
       <div class="tb-cell"><span>DOC</span>blocks-explainer</div>
       <div class="tb-cell"><span>REV</span>2</div>
-      <div class="tb-cell"><span>DATE</span>2026-07-03</div>
+      <div class="tb-cell"><span>DATE</span>2026-07-04</div>
       <div class="tb-cell"><span>SHEET</span>1 OF 1</div>
     </div>
   </header>
 
   <h1>The <span class="det-ink">repeatable parts</span> run as code. The <span class="fuzzy-ink">judgment</span> is a contract any agent can sign.</h1>
 
-  <p class="lede">Agents are great at figuring a task out once — and unreliable at doing it the
-  same way the fiftieth time. Blocks saves the task as a DAG of typed blocks that a tiny,
-  zero-dependency CLI executes identically every run, and fences the parts that genuinely need
-  judgment into <em>fuzzy</em> blocks: prompt contracts whose answers are schema-checked before
-  the run will accept them. Below is a real run from this repository, replayed.</p>
+  <p class="lede">Agents nail a task once. They fail doing it the fiftieth time. Blocks fixes that.
+  It saves a task as a wired-up graph of typed blocks. The CLI runs the parts it can do in
+  its sleep. The parts that need real thinking go to a fuzzy block — a prompt with a typed
+  answer format. The agent's answer is checked before the run accepts it.</p>
+
+  <p>Below is a real run from this repository. Watch it play.</p>
 
   <!-- FIG. 1 : the changelog-from-git run. Authored in its completed state so the
        no-JS and reduced-motion renders show the finished run.
@@ -362,24 +363,26 @@
   <!-- ================= SECTION 1 ================= -->
   <section class="reveal">
   <h2><span class="secno">1</span>Read the run back</h2>
-  <p>Watch where the work happened. Three nodes — <code>log</code>, <code>render</code>,
-  <code>publish</code> — ran in the <span style="color:var(--det); font-weight:600">CLI lane</span>:
-  exact commands and pure transforms, executed by the <code>blocks</code> CLI itself, each stamped
-  with a hash of the block that ran. Two nodes — <code>draft</code> and <code>judge</code> — are
-  <span style="color:var(--fuzzy); font-weight:600">fuzzy</span>: the run paused, an agent read the
-  block's prompt contract and answered, and the answer entered through a schema check. The gate in
-  the middle was decided by the CLI, comparing recorded numbers. The agent never got a vote it
-  didn't sign.</p>
+
+  <p>Three nodes ran by themselves. <code>log</code>, <code>render</code>, <code>publish</code> —
+  the CLI did them, one command at a time, and stamped each one with a hash of the block that ran.
+  Two nodes needed a human brain. <code>draft</code> and <code>judge</code> are
+  <span style="color:var(--fuzzy); font-weight:600">fuzzy</span>. The run paused. An agent read
+  the contract, gave an answer, and the answer was checked before the run moved on.</p>
+
+  <p>The gate in the middle was decided by the CLI. Not the agent. The agent got no vote it didn't
+  sign.</p>
 
   <div class="law" role="doc-pullquote">
     the <span class="det-ink">CLI is the runtime</span> for deterministic nodes;<br>
     the agent is the driver, and the <span class="fuzzy-ink">oracle for fuzzy nodes</span>.
   </div>
 
-  <p>That law is what makes determinism a property instead of a promise. Every run is a file. Run
-  the workflow twice: deterministic nodes produce byte-identical output sections, and each node
-  records the sha256 of the block that produced it, so drift is auditable. This is the actual
-  record of the <code>log</code> node above:</p>
+  <p>That's why determinism is real here, not just a claim. Every run is a file. Run the workflow
+  twice and the deterministic nodes produce byte-for-byte identical output. Each node records the
+  hash of the block that ran it. Drift shows up in the diff.</p>
+
+  <p>Here's the actual record for the <code>log</code> node above:</p>
 
   <!-- source: examples/runs/changelog-from-git-r-269b010f.run.json /nodes/log -->
   <figure>
@@ -399,11 +402,12 @@
   <!-- ================= SECTION 2 ================= -->
   <section class="reveal">
   <h2><span class="secno">2</span>A block is literally a skill</h2>
-  <p>A block is a directory with two files. <code>SKILL.md</code> is a real Claude Code skill —
-  frontmatter restricted to documented keys, so <code>blocks link</code> can symlink it straight
-  into <code>.claude/skills/</code>. <code>contract.json</code> is the machine-readable truth:
-  typed inputs and outputs, and for deterministic blocks, the exact command and a permissions
-  allowlist. The two inks below are the whole taxonomy.</p>
+
+  <p>A block is a folder with two files. <code>SKILL.md</code> is a real Claude Code skill —
+  frontmatter with just documented keys. <code>blocks link</code> symlinks it straight into
+  <code>.claude/skills/</code>. <code>contract.json</code> is the machine-readable truth:
+  typed inputs, typed outputs, and for deterministic blocks, the exact command plus a permissions
+  list. These two styles cover everything:</p>
 
   <div class="duo">
     <!-- source: blocks/git-log/contract.json -->
@@ -454,9 +458,9 @@ Exactly one JSON object:
       <figcaption><b>FIG. 3b</b> — a fuzzy block's body <em>is</em> the prompt contract: role, rubric, worked example</figcaption>
     </figure>
   </div>
-  <p>Fuzzy content is generated; the <em>interface</em> is not. The outputs schema in
-  <code>contract.json</code> is what <code>blocks record</code> enforces — an answer that doesn't
-  fit is named field-by-field and bounced back, three attempts total.</p>
+
+  <p>The interface is typed. The content is not. <code>blocks record</code> enforces the output
+  schema. An answer that doesn't fit gets the exact field named, bounced back, three tries total.</p>
   </section>
 
   <!-- ================= SECTION 3 ================= -->
@@ -464,16 +468,15 @@ Exactly one JSON object:
   <h2><span class="secno">3</span>Five words carry the system</h2>
 
   <div class="fivewords" role="list">
-    <div class="fw" role="listitem"><b>block</b><p>One unit of work: a skill-shaped directory, deterministic or fuzzy, with a typed contract.</p></div>
-    <div class="fw" role="listitem"><b>wire</b><p><code>{{nodes.log.output.text}}</code> — a binding from one node's output to another's input. Wires define the DAG's edges.</p></div>
-    <div class="fw" role="listitem"><b>gate</b><p>A <code>when</code> condition on a node, in a grammar too small to hide logic in: <code>ref op literal</code>, joined by and/or. Draft 3 adds <code>contains</code> and a <code>#</code> length modifier — still no parens, no functions.</p></div>
-    <div class="fw" role="listitem"><b>run</b><p>One execution, persisted as a state file: statuses, outputs, attempts, block hashes. Resumable, diffable, auditable.</p></div>
-    <div class="fw" role="listitem"><b>grant</b><p>The workflow co-signing a block's declared permissions. Effective capability is the intersection — grants never expand. Parents co-sign an embedded workflow's grants too.</p></div>
+    <div class="fw" role="listitem"><b>block</b><p>One unit of work: a folder, deterministic or fuzzy, with a typed contract.</p></div>
+    <div class="fw" role="listitem"><b>wire</b><p><code>{{nodes.log.output.text}}</code> — an output bound to an input. Wires draw the graph.</p></div>
+    <div class="fw" role="listitem"><b>gate</b><p>A <code>when</code> condition on a node. Tiny grammar — no parens, no functions. Draft 3 adds <code>contains</code> and a <code>#</code> length check.</p></div>
+    <div class="fw" role="listitem"><b>run</b><p>One execution. Saved as a file with statuses, outputs, attempts, and hashes. Resume it, diff it, audit it.</p></div>
+    <div class="fw" role="listitem"><b>grant</b><p>The workflow co-signs a block's permissions. Effective power = declarations ∩ grants. Grants never expand. Parents co-sign embedded workflows too.</p></div>
   </div>
 
-  <p style="margin-top:22px">Gates cut paths — and a skipped path is a result, not an error. In this repo's
-  other example, a bug-report run classified the report <code>p1</code>, so the backlog lane was
-  skipped by the CLI, with the reason on the record:</p>
+  <p>A gate can cut a path. That's a result, not an error. In another example run, a bug report
+  was classified <code>p1</code>, so the backlog lane was skipped — with the reason on the record:</p>
 
   <!-- source: examples/runs/triage-bug-report-r-e3b8418b.run.json /nodes/route-backlog -->
   <figure>
@@ -484,9 +487,8 @@ Exactly one JSON object:
     <figcaption><b>FIG. 4</b> — examples/runs/triage-bug-report-r-e3b8418b.run.json</figcaption>
   </figure>
 
-  <p>Grants are the security model in one line of JSON. The changelog workflow lets
-  <code>write-file</code> — a block that <em>declares</em> it can write anywhere — touch exactly
-  one path:</p>
+  <p>Grants are the security model. One line of JSON. <code>write-file</code> declares it can write
+  anywhere, but the changelog workflow lets it touch exactly one path:</p>
 
   <!-- source: workflows/changelog-from-git.workflow.json /grants -->
   <figure>
@@ -501,9 +503,9 @@ Exactly one JSON object:
   <!-- ================= SECTION 4 ================= -->
   <section class="reveal">
   <h2><span class="secno">4</span>Any agent can be the oracle</h2>
-  <p>There is no SDK to integrate and no adapter to write. When a run reaches a fuzzy node, the
-  CLI pauses and prints the entire protocol — which contract to read, what the input is, and the
-  exact command that continues the run:</p>
+
+  <p>No SDK. No adapter. When the run hits a fuzzy node, the CLI pauses and prints everything:
+  which contract to read, what the input is, and the exact command to continue:</p>
 
   <!-- source: cli/src/run.js exec pause output (verbatim from the dogfood run) -->
   <figure>
@@ -518,37 +520,39 @@ Exactly one JSON object:
     <figcaption><b>FIG. 6</b> — cli/src/run.js · read a file, write a JSON answer, run one command. That is the whole interface.</figcaption>
   </figure>
 
-  <p>Anything that can read a file and run a command can drive a workflow — the protocol doesn't
-  know who you are:</p>
+  <p>If you can read a file and run a command, you can drive a workflow. The protocol doesn't
+  care who you are:</p>
 
   <div class="oracles">
-    <div class="oracle"><b>CLAUDE CODE</b><p>Ships with two skills in this repo: <code>blocks-composer</code> builds workflows, <code>blocks-runner</code> executes them.</p></div>
-    <div class="oracle"><b>SDK AGENT</b><p>An agent loop that shells out: <code>exec</code>, answer the contract, <code>record</code>, repeat until <code>run complete</code>.</p></div>
-    <div class="oracle"><b>ANY VENDOR</b><p>No model calls inside the CLI, no API keys, no telemetry. The oracle is whoever answers the contract well.</p></div>
-    <div class="oracle"><b>A HUMAN</b><p>Read the SKILL.md, type JSON in an editor, run <code>blocks record</code>. Slow oracle; same guarantees.</p></div>
+    <div class="oracle"><b>CLAUDE CODE</b><p>Two skills in this repo: <code>blocks-composer</code> builds workflows, <code>blocks-runner</code> runs them.</p></div>
+    <div class="oracle"><b>SDK AGENT</b><p>A loop: shell out to <code>exec</code>, answer the contract, <code>record</code>, repeat until done.</p></div>
+    <div class="oracle"><b>ANY VENDOR</b><p>No model calls in the CLI, no API keys, no telemetry. Whoever answers the contract best gets the job.</p></div>
+    <div class="oracle"><b>A HUMAN</b><p>Read the SKILL.md, type JSON, run <code>blocks record</code>. Slow, but same guarantees.</p></div>
   </div>
 
-  <p style="margin-top:22px">And because answers are schema-checked at the door, a weak oracle
-  degrades loudly, not silently: an invalid answer is bounced with the exact violating field,
-  three attempts total, then the node fails and the run stops.</p>
-  <p>When a node demands more than an answer — a signing key with declared claims, an attested
-  capability — the pause banner prints the complete ceremony, <code>--sign</code> and
+  <p>Bad answers don't sneak through. They're bounced with the exact field that failed, three tries
+  total, then the node fails and the run stops.</p>
+
+  <p>Sometimes a node needs more than an answer — a signed key with declared claims, an attested
+  capability. The pause banner prints the whole ceremony, <code>--sign</code> and
   <code>--attest</code> included, exact strings filled in. The protocol never makes the oracle
-  guess what authority looks like. That story is FIG. 7.</p>
+  guess what authority looks like. That's FIG. 7.</p>
   </section>
 
   <!-- ================= SECTION 5 (REV 2) ================= -->
   <section class="reveal">
   <h2><span class="secno">5</span>Compose, then demand a key</h2>
-  <p>The protocol's next two drafts answered two questions. <em>Can workflows nest?</em> Once a workflow
-  declares typed <span style="color:var(--det); font-weight:600">outputs</span>, it has the same
-  interface shape as a block — so it can be a node. The entire FIG. 1 pipeline is now one
-  framed node inside the release workflow below, and the parent must co-sign everything the
-  child may touch: the root workflow's grants are a complete statement of what the whole tree
-  can do. <em>Can approval be authoritative?</em> A fuzzy block can demand that its answer
-  arrive signed by a registered key carrying declared claims, and attested to a declared
-  capability. The runner refuses anything less at the door — without burning the attempt
-  budget.</p>
+
+  <p>Two questions drove the last two drafts.</p>
+
+  <p><em>Can workflows nest?</em> Once a workflow declares typed outputs, it has the same shape as
+  a block. So yes, it can be a node. The entire FIG. 1 pipeline is now one framed node inside the
+  release workflow below. The parent co-signs everything the child may touch. The root workflow's
+  grants spell out everything this whole tree can do.</p>
+
+  <p><em>Can approval be authoritative?</em> A fuzzy block can demand its answer arrive signed by
+  a registered key with declared claims, attested to a declared capability. The runner refuses
+  anything less at the door — without burning the attempt budget.</p>
 
   <!-- FIG. 7: the release run, static plate (deliberately not animated — one sheet, one show)
        source: workflows/release.workflow.json
@@ -631,35 +635,57 @@ refused: node "approve" requires an approval signed by a key with claims [<span 
   <!-- ================= SECTION 6 ================= -->
   <section class="reveal">
   <h2><span class="secno">6</span>Guarantees, honestly stated</h2>
+
   <ul class="spec">
-    <li>Bindings are filled as whole argv elements — never through a shell. A value of
-    <code>"; rm -rf ."</code> arrives as those literal bytes. There's a test.</li>
-    <li>Effective capability = block declarations ∩ workflow grants; ungranted binaries are
-    refused, paths are workspace-fenced at validation and again at exec, and entry scripts run
-    under Node's permission model where available.</li>
-    <li><code>network: false</code> is a reviewed declaration, not a sandbox — v1 has no
-    containers, and says so.</li>
-    <li>Fuzzy content is never trusted: schemas bound its shape, gates bound its blast radius,
-    and prompt contracts tell the oracle to treat inputs as data, not instructions.</li>
-    <li>Approvals are Ed25519 signatures over a domain-tagged string binding workflow, block,
-    run, node, input, and answer. Record-time verification is enforced; whether a key's claims
-    are <em>true</em> is a reviewed registry statement — declared, and the sheet says so.
-    Capability attestations follow the same honesty: equality enforced, truth declared.</li>
-    <li>Hashes are draft-scoped: a run is read under the protocol draft it declares. Older
-    committed runs are history, not drift.</li>
-    <li>Non-goals, kept on purpose: no loops or fan-out in the DAG, no parallel scheduler, no
-    registry, no server, no PKI. The CLI never calls a model.</li>
+    <li>Bindings are filled as whole argv elements — never through a shell. <code>"; rm -rf ."</code>
+    arrives as those literal bytes. There's a test.</li>
+    <li>Effective capability = block declarations ∩ workflow grants. Ungranted binaries refused.
+    Paths fenced at validation and again at exec. Entry scripts run under Node's permission model
+    where it's available.</li>
+    <li><code>network: false</code> is a reviewed declaration, not a sandbox. v1 has no containers,
+    and says so.</li>
+    <li>Fuzzy content is never trusted. Schemas bound its shape. Gates bound its blast radius.
+    Prompt contracts tell the oracle to treat inputs as data, not instructions.</li>
+    <li>Approvals are Ed25519 signatures over a tagged string binding workflow, block, run, node,
+    input, and answer. Verification runs at record time. Key claims are declared, and the sheet
+    says so.</li>
+    <li>Hashes are draft-scoped. A run is read under the draft it declares. Old runs are history.</li>
+    <li>Non-goals, on purpose: no loops, no fan-out, no parallel scheduler, no registry, no server,
+    no PKI. The CLI never calls a model.</li>
   </ul>
 
+  <!-- ================= NEXT STEPS (Ogilvy #9: crystal-clear call to action) ================= -->
+  <section class="reveal" style="margin-top:56px; border-top: 1.5px solid var(--ink); padding-top: 20px;">
+  <h2><span class="secno">7</span>What to do next</h2>
+
+  <p>Pick one. All commands run from this repo's root:</p>
+
+  <div class="plate" style="padding: 16px 18px; font-family: var(--mono); font-size: 13px; line-height: 1.8;">
+    <div style="margin-bottom: 8px;"><span style="color: var(--det); font-weight: 600;">1.</span> <strong>List what's in the library:</strong><br>
+    <code>cli/bin/blocks list</code></div>
+
+    <div style="margin-bottom: 8px;"><span style="color: var(--det); font-weight: 600;">2.</span> <strong>Validate a workflow against the library:</strong><br>
+    <code>cli/bin/blocks validate workflows/changelog-from-git.workflow.json</code></div>
+
+    <div style="margin-bottom: 8px;"><span style="color: var(--det); font-weight: 600;">3.</span> <strong>Run it:</strong><br>
+    <code>cli/bin/blocks exec workflows/changelog-from-git.workflow.json --input range=HEAD~5..HEAD</code></div>
+
+    <div style="margin-bottom: 8px;"><span style="color: var(--det); font-weight: 600;">4.</span> <strong>Create your own block:</strong><br>
+    <code>cli/bin/blocks new block my-task --kind deterministic</code></div>
+
+    <div><span style="color: var(--det); font-weight: 600;">5.</span> <strong>Read the spec for everything else:</strong> <code>SPEC.md</code></div>
+  </div>
+  </section>
+
   <p class="colophon">
-    THE RUN IN FIG. 1 WROTE THIS REPOSITORY'S FIRST CHANGELOG.MD — JUDGED 0.85, 394 BYTES;
-    FIG. 7'S CHILD RUN HAS SINCE REWRITTEN IT (JUDGED 0.9, 420 BYTES). RELEASE.MD WAS CUT BY
-    FIG. 7 — APPROVED, SIGNED BY K-TOM, 557 BYTES.<br>
-    THIS SHEET IS ONE SELF-CONTAINED FILE: NO EXTERNAL FONTS, SCRIPTS, OR REQUESTS. ANIMATION
-    RESPECTS <span style="white-space:nowrap">PREFERS-REDUCED-MOTION</span>; WITH SCRIPTS OFF, THE
-    RUN RENDERS COMPLETE.<br>
-    SPEC.MD IN THE REPOSITORY REMAINS THE NORMATIVE SOURCE. FIVE WORDS, EVERYWHERE: BLOCK · WIRE
-    · GATE · RUN · GRANT.
+    the run in fig. 1 wrote this repository's first changelog.md — judged 0.85, 394 bytes.
+    fig. 7's child run later rewrote it (judged 0.9, 420 bytes). release.md was cut by
+    fig. 7 — approved, signed by k-tom, 557 bytes.<br>
+    this sheet is one self-contained file: no external fonts, scripts, or requests. animation
+    respects <span style="white-space:nowrap">prefers-reduced-motion</span>; with scripts off,
+    the run renders complete.<br>
+    spec.md in the repository remains the normative source. five words, everywhere: block · wire
+    · gate · run · grant.
   </p>
   </section>
 

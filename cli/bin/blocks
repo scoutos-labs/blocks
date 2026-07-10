@@ -21,16 +21,23 @@ usage: blocks <verb> [args]
   list [--json]                       inventory the block library
   validate <workflow.json>            static validation: pins, wires, gates, grants, acyclicity
   graph <workflow.json>               ASCII render of the DAG
-  plan <workflow.json> [--state f]    topo order / next pending node
-  exec <workflow.json> [--state f] [--out f] [--input k=v]...
-                                      run deterministic nodes, persist run-state
-  check-output <block> <file|->       validate candidate fuzzy output against a block contract
-  record --state f --node id --output f [--sign keyfile] [--attest <capability>]
-                                      validate + append a fuzzy node's output to run-state;
-                                      --sign adds an Ed25519 approval (required by oracle.claims blocks)
+  plan <workflow.json> [--state f]    static, read-only topo/status plan; no input/state mutation
+  exec <workflow.json> [--state f] [--out f] [--json] [--input k=v]...
+                                      run deterministic nodes, persist protocol-4 run-state
+  runs [--json]                       inventory run status and paused submission targets
+  audit <run.json> [--json]           read-only verification of protocol-3/4 run ledgers
+  approval --state f --node id --output f [--raw]
+                                      export candidate-bound detached-signing bytes
+  check-output <block> <file|-> [--input resolved-input.json]
+                                      validate candidate fuzzy output against a block contract
+  record --state f --node id --output f [--approval f|--sign keyfile] [--attest <capability>]
+                                      validate + append a fuzzy output; approval is detached,
+                                      --attest records required oracle capability self-attestation
   link <block> [--check]              symlink a block into .claude/skills/
-  new block <name> --kind <det|fuzzy> scaffold a block directory
-  new key <id> --claims <a,b>         register an approval key (public in keys/, private gitignored)
+  new block <name> --kind <det|fuzzy> [--claims a,b] [--capability name]
+                                      scaffold a block directory
+  new key <id> --claims <a,b> [--private-out f]
+                                      register public key; private key stays outside workspace
 
 vocabulary: block · wire · gate · run · grant   (SPEC.md)`;
 
@@ -127,6 +134,25 @@ switch (verb) {
   case 'record': {
     const { runVerb } = await import('../src/run.js');
     await runVerb(verb, args, { root, library, loadValidated, flag, boolFlag, usage });
+    break;
+  }
+
+
+  case 'runs': {
+    const { runsVerb } = await import('../src/runs.js');
+    await runsVerb(args, { root, boolFlag, usage });
+    break;
+  }
+
+  case 'approval': {
+    const { approvalVerb } = await import('../src/run.js');
+    await approvalVerb(args, { root, flag, boolFlag, usage });
+    break;
+  }
+
+  case 'audit': {
+    const { auditVerb } = await import('../src/audit.js');
+    await auditVerb(args, { root, boolFlag, usage });
     break;
   }
 

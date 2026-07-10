@@ -1,0 +1,17 @@
+{
+  "draft": 4,
+  "valid": [
+    "workflows/triage-bug-report.workflow.json",
+    "workflows/release.workflow.json"
+  ],
+  "invalidShapes": [
+    {
+      "id": "contextual-enum-needs-protocol-4",
+      "reason": "A workflow using classify@1 must declare protocol 4 because its output contract uses enumFromInput."
+    },
+    {
+      "id": "mixed-gate-joins",
+      "reason": "One gate cannot mix and/or joins because the language has no precedence or parentheses."
+    }
+  ]
+}

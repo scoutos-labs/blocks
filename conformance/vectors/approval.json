@@ -1,0 +1,14 @@
+{
+  "draft": 3,
+  "sourceRun": "examples/runs/legacy/release-r-c07ba399.run.json",
+  "nodeId": "approve",
+  "publicJwk": {
+    "crv": "Ed25519",
+    "x": "Cwk8PsRR_cuiQWxl0jwerMjku4bPHTiKypCsV489zao",
+    "kty": "OKP"
+  },
+  "inputDigest": "sha256:e25657aaaa8dde22633ecb9589e7c269ea5d97356d4890e5da1e6fa8e2a12a1d",
+  "answerDigest": "sha256:9771c6dda79359bad87e196cbaae763b1ea2c90d76fc4536fa7c3cbaf591c70e",
+  "payload": "blocks-approval-v2\nsha256:341fd31c17bf3ed836f7c9929c7931f9fb9063c368b6ebdad34dbcea20740a2f\nsha256:f6040447da534a73b75d7bea63ef4e79ed9459fc7f496af8570007a5decdc480\nr-c07ba399\napprove\nsha256:e25657aaaa8dde22633ecb9589e7c269ea5d97356d4890e5da1e6fa8e2a12a1d\nsha256:9771c6dda79359bad87e196cbaae763b1ea2c90d76fc4536fa7c3cbaf591c70e",
+  "signature": "8xN0HE48fU4nd7q3PLx53mACE-E-XY1vn_NDoc8-WPjAHUUh9s6_iZmHxqvQVtiOMKv-fzY0-Af2rRCRMTcpBw"
+}
