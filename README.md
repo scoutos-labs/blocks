@@ -250,7 +250,8 @@ npm run ci
 
 ## Documentation
 
-- [Blocks Skill Protocol Draft 04](PROTOCOL.md)
+- [Live Blocks Skill Protocol Draft 04](https://blocks.zenbin.org/)
+- [Protocol source](PROTOCOL.md)
 - [Reference implementation specification](SPEC.md)
 - [Protocol HTML artifact](blocks-protocol.html)
 - [Changelog](CHANGELOG.md)
